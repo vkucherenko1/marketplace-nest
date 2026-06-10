@@ -1,0 +1,21 @@
+{
+  "name": "marketplace-nest",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "prebuild": "npm run build -w @marketplace/contracts",
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspaces --if-present",
+    "pretest": "npm run build -w @marketplace/contracts",
+    "test": "npm run test --workspaces --if-present",
+    "pretypecheck": "npm run build -w @marketplace/contracts",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

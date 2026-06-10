@@ -1,0 +1,168 @@
+name: marketplace
+
+services:
+  auth-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: marketplace
+      POSTGRES_DB: auth
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d auth"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+
+  catalog-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: marketplace
+      POSTGRES_DB: catalog
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d catalog"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - redis-data:/data
+
+  nats:
+    image: nats:2.11-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "8222:8222"
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.15
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-local-meili-master-key}
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili-data:/meili_data
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-marketplace}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-marketplace-secret}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        APP_NAME: auth-service
+    environment:
+      PORT: 3001
+      DATABASE_URL: ${AUTH_DATABASE_URL:-postgresql://marketplace:marketplace@auth-db:5432/auth}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-access-secret-change-me-32-chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-refresh-secret-change-me-32-chars}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        APP_NAME: catalog-service
+    environment:
+      PORT: 3002
+      DATABASE_URL: ${CATALOG_DATABASE_URL:-postgresql://marketplace:marketplace@catalog-db:5432/catalog}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3002/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        APP_NAME: api-gateway
+    environment:
+      PORT: 8080
+      AUTH_SERVICE_URL: http://auth-service:3001
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  auth-db-data:
+  catalog-db-data:
+  redis-data:
+  meili-data:
+  minio-data:

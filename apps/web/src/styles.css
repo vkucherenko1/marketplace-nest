@@ -1,0 +1,66 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  /* Семантические токены дают компонентам единый язык и позволяют
+     менять визуальную тему без массовой правки JSX-классов. */
+  --color-ink: oklch(23% 0.025 150);
+  --color-cream: oklch(96.5% 0.012 91);
+  --color-lime: oklch(92% 0.2 118);
+  --color-coral: oklch(70% 0.18 36);
+  --color-surface: oklch(100% 0 0);
+  --color-muted: oklch(55% 0.025 150);
+  --color-border: oklch(86% 0.018 150);
+  --color-danger: oklch(58% 0.22 28);
+  --font-sans: "Manrope", sans-serif;
+  --shadow-card: 0 18px 50px color-mix(in oklch, var(--color-ink) 10%, transparent);
+  --radius-card: 1.5rem;
+  --radius-panel: 2rem;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    @apply bg-cream font-sans text-ink antialiased;
+  }
+
+  button,
+  select,
+  input {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  a {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-lime);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  .icon-button {
+    @apply grid h-10 w-10 place-items-center rounded-full border border-ink/15 transition hover:bg-ink hover:text-white;
+  }
+
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[.2em] text-ink/45;
+  }
+
+  .section-title {
+    @apply mt-2 text-4xl font-semibold tracking-[-.04em] sm:text-5xl;
+  }
+}
