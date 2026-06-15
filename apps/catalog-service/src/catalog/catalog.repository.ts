@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
 import type {
   Category,
   PageSize,
@@ -11,166 +12,134 @@ import type {
   SaveCategory,
 } from "@marketplace/contracts";
 import { randomUUID } from "node:crypto";
-import { DatabaseService } from "../database/database.service";
-
-interface ProductRow {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  category_id: string;
-  category_slug: string;
-  category_name: string;
-  seller_id: string;
-  seller_name: string;
-  seller_rating: string;
-  seller_review_count: number;
-  price_minor: number;
-  rating: string;
-  review_count: number;
-  image_url: string;
-  stock: number;
-}
+import { Brackets, In, Not, Repository } from "typeorm";
+import { CategoryEntity } from "../database/entities/category.entity";
+import { ProductReviewEntity } from "../database/entities/product-review.entity";
+import { ProductVariantEntity } from "../database/entities/product-variant.entity";
+import {
+  ProductEntity,
+  type ProductStatus,
+} from "../database/entities/product.entity";
 
 @Injectable()
 export class CatalogRepository {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    @InjectRepository(CategoryEntity)
+    private readonly categories: Repository<CategoryEntity>,
+    @InjectRepository(ProductEntity)
+    private readonly products: Repository<ProductEntity>,
+    @InjectRepository(ProductVariantEntity)
+    private readonly variants: Repository<ProductVariantEntity>,
+    @InjectRepository(ProductReviewEntity)
+    private readonly reviews: Repository<ProductReviewEntity>,
+  ) {}
 
   async listCategories(): Promise<Category[]> {
-    const result = await this.database.pool.query<{
-      id: string;
-      slug: string;
-      name: string;
-      parent_id: string | null;
-      depth: number;
-      product_count: string;
-    }>(`
-      WITH RECURSIVE category_tree AS (
-        SELECT id, slug, name, parent_id, 1 AS depth
-        FROM categories WHERE parent_id IS NULL
-        UNION ALL
-        SELECT c.id, c.slug, c.name, c.parent_id, tree.depth + 1
-        FROM categories c
-        JOIN category_tree tree ON tree.id = c.parent_id
-      ),
-      category_closure AS (
-        SELECT id AS ancestor_id, id AS descendant_id FROM categories
-        UNION ALL
-        SELECT closure.ancestor_id, child.id
-        FROM category_closure closure
-        JOIN categories child ON child.parent_id = closure.descendant_id
-      )
-      SELECT tree.id, tree.slug, tree.name, tree.parent_id, tree.depth,
-             count(p.id)::text AS product_count
-      FROM category_tree tree
-      JOIN category_closure closure ON closure.ancestor_id = tree.id
-      LEFT JOIN products p
-        ON p.category_id = closure.descendant_id AND p.status = 'ACTIVE'
-      GROUP BY tree.id, tree.slug, tree.name, tree.parent_id, tree.depth
-      ORDER BY tree.depth, tree.name
-    `);
-    return result.rows.map((row) => ({
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      parentId: row.parent_id,
-      depth: row.depth,
-      productCount: Number(row.product_count),
-    }));
+    const [categoryEntities, directCounts] = await Promise.all([
+      this.categories.find({ order: { name: "ASC" } }),
+      this.products
+        .createQueryBuilder("product")
+        .select("product.categoryId", "categoryId")
+        .addSelect("COUNT(product.id)", "productCount")
+        .where("product.status = :status", { status: "ACTIVE" })
+        .groupBy("product.categoryId")
+        .getRawMany<{ categoryId: string; productCount: string }>(),
+    ]);
+    const graph = buildCategoryGraph(categoryEntities);
+    const countByCategory = new Map(
+      directCounts.map((item) => [item.categoryId, Number(item.productCount)]),
+    );
+
+    return categoryEntities
+      .map((category) => ({
+        id: category.id,
+        slug: category.slug,
+        name: category.name,
+        parentId: category.parentId,
+        depth: graph.depth(category.id),
+        productCount: graph
+          .descendants(category.id)
+          .reduce((total, id) => total + (countByCategory.get(id) ?? 0), 0),
+      }))
+      .sort(
+        (left, right) =>
+          left.depth - right.depth ||
+          left.name.localeCompare(right.name, "ru"),
+      );
   }
 
   async createCategory(input: SaveCategory): Promise<Category> {
-    const id = randomUUID();
-    await this.database.pool.query(
-      `INSERT INTO categories (id, slug, name, parent_id) VALUES ($1, $2, $3, $4)`,
-      [id, input.slug, input.name, input.parentId],
+    const entity = await this.categories.save(
+      this.categories.create({
+        id: randomUUID(),
+        ...input,
+      }),
     );
     return {
-      id,
-      ...input,
-      depth: await this.categoryDepth(id),
+      id: entity.id,
+      slug: entity.slug,
+      name: entity.name,
+      parentId: entity.parentId,
+      depth: await this.categoryDepth(entity.id),
       productCount: 0,
     };
   }
 
   async categorySlugExists(slug: string, exceptId?: string): Promise<boolean> {
-    const result = await this.database.pool.query(
-      `SELECT 1 FROM categories WHERE slug = $1 AND ($2::text IS NULL OR id <> $2)`,
-      [slug, exceptId ?? null],
-    );
-    return result.rowCount === 1;
+    return this.categories.exists({
+      where: exceptId ? { slug, id: Not(exceptId) } : { slug },
+    });
   }
 
-  async updateCategory(id: string, input: SaveCategory): Promise<Category | null> {
-    const result = await this.database.pool.query(
-      `UPDATE categories SET slug = $2, name = $3, parent_id = $4 WHERE id = $1`,
-      [id, input.slug, input.name, input.parentId],
-    );
-    if (result.rowCount !== 1) {
+  async updateCategory(
+    id: string,
+    input: SaveCategory,
+  ): Promise<Category | null> {
+    const category = await this.categories.findOneBy({ id });
+    if (!category) {
       return null;
     }
-    const category = (await this.listCategories()).find((item) => item.id === id);
-    return category ?? null;
+    this.categories.merge(category, input);
+    await this.categories.save(category);
+    return (await this.listCategories()).find((item) => item.id === id) ?? null;
   }
 
-  async deleteCategory(id: string): Promise<"deleted" | "not_found" | "not_empty"> {
-    const result = await this.database.pool.query<{ child_count: string; product_count: string }>(
-      `SELECT
-         (SELECT count(*) FROM categories WHERE parent_id = $1)::text AS child_count,
-         (SELECT count(*) FROM products WHERE category_id = $1)::text AS product_count
-       WHERE EXISTS (SELECT 1 FROM categories WHERE id = $1)`,
-      [id],
-    );
-    const row = result.rows[0];
-    if (!row) {
+  async deleteCategory(
+    id: string,
+  ): Promise<"deleted" | "not_found" | "not_empty"> {
+    if (!(await this.categories.existsBy({ id }))) {
       return "not_found";
     }
-    if (Number(row.child_count) > 0 || Number(row.product_count) > 0) {
+    const [childCount, productCount] = await Promise.all([
+      this.categories.countBy({ parentId: id }),
+      this.products.countBy({ categoryId: id }),
+    ]);
+    if (childCount > 0 || productCount > 0) {
       return "not_empty";
     }
-    await this.database.pool.query(`DELETE FROM categories WHERE id = $1`, [id]);
+    await this.categories.delete(id);
     return "deleted";
   }
 
   async categoryDepth(id: string): Promise<number> {
-    const result = await this.database.pool.query<{ depth: number }>(
-      `WITH RECURSIVE ancestors AS (
-         SELECT id, parent_id, 1 AS depth FROM categories WHERE id = $1
-         UNION ALL
-         SELECT c.id, c.parent_id, ancestors.depth + 1
-         FROM categories c JOIN ancestors ON c.id = ancestors.parent_id
-       )
-       SELECT coalesce(max(depth), 0)::int AS depth FROM ancestors`,
-      [id],
-    );
-    return result.rows[0]?.depth ?? 0;
+    const graph = buildCategoryGraph(await this.categories.find());
+    return graph.depth(id);
   }
 
   async subtreeDepth(id: string): Promise<number> {
-    const result = await this.database.pool.query<{ depth: number }>(
-      `WITH RECURSIVE descendants AS (
-         SELECT id, 1 AS depth FROM categories WHERE id = $1
-         UNION ALL
-         SELECT c.id, descendants.depth + 1
-         FROM categories c JOIN descendants ON c.parent_id = descendants.id
-       )
-       SELECT coalesce(max(depth), 0)::int AS depth FROM descendants`,
-      [id],
+    const graph = buildCategoryGraph(await this.categories.find());
+    const rootDepth = graph.depth(id);
+    return Math.max(
+      0,
+      ...graph
+        .descendants(id)
+        .map((descendantId) => graph.depth(descendantId) - rootDepth + 1),
     );
-    return result.rows[0]?.depth ?? 0;
   }
 
   async isInSubtree(rootId: string, candidateId: string): Promise<boolean> {
-    const result = await this.database.pool.query(
-      `WITH RECURSIVE descendants AS (
-         SELECT id FROM categories WHERE id = $1
-         UNION ALL
-         SELECT c.id FROM categories c JOIN descendants ON c.parent_id = descendants.id
-       )
-       SELECT 1 FROM descendants WHERE id = $2`,
-      [rootId, candidateId],
-    );
-    return result.rowCount === 1;
+    const graph = buildCategoryGraph(await this.categories.find());
+    return graph.descendants(rootId).includes(candidateId);
   }
 
   async listProducts(input: {
@@ -180,65 +149,65 @@ export class CatalogRepository {
     page: number;
     pageSize: PageSize;
   }): Promise<PaginatedResponse<ProductCard>> {
-    // Значения передаются параметрами PostgreSQL, а SQL-фрагменты сортировки
-    // выбираются только из закрытого union-типа ProductSort.
-    const values: unknown[] = [];
-    const predicates = ["p.status = 'ACTIVE'"];
-    let searchParameter: number | null = null;
+    const query = this.products
+      .createQueryBuilder("product")
+      .innerJoinAndSelect("product.category", "category")
+      .innerJoinAndSelect("product.seller", "seller")
+      .where("product.status = :status", { status: "ACTIVE" });
+
     if (input.category) {
-      values.push(input.category);
-      predicates.push(`c.id IN (
-        WITH RECURSIVE selected_categories AS (
-          SELECT id FROM categories WHERE slug = $${values.length}
-          UNION ALL
-          SELECT child.id FROM categories child
-          JOIN selected_categories parent ON child.parent_id = parent.id
-        )
-        SELECT id FROM selected_categories
-      )`);
+      const categories = await this.categories.find();
+      const selected = categories.find(
+        (category) => category.slug === input.category,
+      );
+      const categoryIds = selected
+        ? buildCategoryGraph(categories).descendants(selected.id)
+        : [];
+      if (categoryIds.length === 0) {
+        return {
+          items: [],
+          page: input.page,
+          pageSize: input.pageSize,
+          total: 0,
+          totalPages: 0,
+        };
+      }
+      query.andWhere({ categoryId: In(categoryIds) });
     }
+
     if (input.search) {
-      values.push(`%${input.search}%`);
-      searchParameter = values.length;
-      predicates.push(
-        `(p.name ILIKE $${values.length} OR p.description ILIKE $${values.length})`,
+      query.andWhere(
+        new Brackets((search) => {
+          search
+            .where("product.name ILIKE :search")
+            .orWhere("product.description ILIKE :search");
+        }),
+        { search: `%${input.search}%` },
       );
     }
-    const where = predicates.join(" AND ");
-    const orderBy: Record<ProductSort, string> = {
-      relevance: searchParameter
-        ? `CASE WHEN p.name ILIKE $${searchParameter} THEN 0 ELSE 1 END, p.rating DESC, p.id`
-        : "p.rating DESC, p.review_count DESC, p.id",
-      price_asc: "p.price_minor ASC, p.id",
-      price_desc: "p.price_minor DESC, p.id",
-      rating: "p.rating DESC, p.review_count DESC, p.id",
+
+    const orderBy: Record<
+      ProductSort,
+      { column: string; direction: "ASC" | "DESC" }
+    > = {
+      relevance: { column: "product.rating", direction: "DESC" },
+      price_asc: { column: "product.priceMinor", direction: "ASC" },
+      price_desc: { column: "product.priceMinor", direction: "DESC" },
+      rating: { column: "product.rating", direction: "DESC" },
     };
-    // Подсчёт и выборка разделены, чтобы клиент получил точное число страниц,
-    // а сама пагинация выполнялась в БД, не в памяти приложения.
-    const countResult = await this.database.pool.query<{ total: string }>(
-      `SELECT count(*)::text AS total
-       FROM products p JOIN categories c ON c.id = p.category_id
-       WHERE ${where}`,
-      values,
-    );
-    const total = Number(countResult.rows[0]?.total ?? 0);
-    values.push(input.pageSize, (input.page - 1) * input.pageSize);
-    const result = await this.database.pool.query<ProductRow>(
-      `SELECT p.id, p.slug, p.name, p.description, p.price_minor, p.rating,
-              p.review_count, p.image_url, p.stock,
-              c.id AS category_id, c.slug AS category_slug, c.name AS category_name,
-              s.id AS seller_id, s.name AS seller_name, s.rating AS seller_rating,
-              s.review_count AS seller_review_count
-       FROM products p
-       JOIN categories c ON c.id = p.category_id
-       JOIN sellers s ON s.id = p.seller_id
-       WHERE ${where}
-       ORDER BY ${orderBy[input.sort]}
-       LIMIT $${values.length - 1} OFFSET $${values.length}`,
-      values,
-    );
+    const order = orderBy[input.sort];
+    query
+      .orderBy(order.column, order.direction)
+      .addOrderBy("product.reviewCount", "DESC")
+      .addOrderBy("product.id", "ASC")
+      .skip((input.page - 1) * input.pageSize)
+      .take(input.pageSize);
+
+    // getManyAndCount выполняет пагинацию и подсчёт средствами ORM,
+    // не загружая всю выдачу в память приложения.
+    const [entities, total] = await query.getManyAndCount();
     return {
-      items: result.rows.map((row) => this.mapProduct(row)),
+      items: entities.map((entity) => this.mapProduct(entity)),
       page: input.page,
       pageSize: input.pageSize,
       total,
@@ -247,27 +216,31 @@ export class CatalogRepository {
   }
 
   async findProductBySlug(slug: string): Promise<ProductDetail | null> {
-    const result = await this.database.pool.query<ProductRow>(
-      `SELECT p.id, p.slug, p.name, p.description, p.price_minor, p.rating,
-              p.review_count, p.image_url, p.stock,
-              c.id AS category_id, c.slug AS category_slug, c.name AS category_name,
-              s.id AS seller_id, s.name AS seller_name, s.rating AS seller_rating,
-              s.review_count AS seller_review_count
-       FROM products p
-       JOIN categories c ON c.id = p.category_id
-       JOIN sellers s ON s.id = p.seller_id
-       WHERE p.slug = $1 AND p.status = 'ACTIVE'`,
-      [slug],
-    );
-    const row = result.rows[0];
-    if (!row) {
+    const product = await this.products.findOne({
+      where: { slug, status: "ACTIVE" },
+      relations: {
+        category: true,
+        seller: true,
+        variants: true,
+        reviews: true,
+      },
+    });
+    if (!product) {
       return null;
     }
-    const [variants, reviews] = await Promise.all([
-      this.listVariants(row.id),
-      this.listReviews(row.id),
-    ]);
-    return { ...this.mapProduct(row), variants, reviews };
+    return {
+      ...this.mapProduct(product),
+      variants: product.variants
+        .sort(
+          (left, right) =>
+            left.priceMinor - right.priceMinor || left.id.localeCompare(right.id),
+        )
+        .map((variant) => this.mapVariant(variant)),
+      reviews: product.reviews
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+        .slice(0, 10)
+        .map((review) => this.mapReview(review)),
+    };
   }
 
   async createProduct(
@@ -286,22 +259,16 @@ export class CatalogRepository {
       .toLowerCase()
       .replace(/[^a-z0-9а-яё]+/gi, "-")
       .replace(/^-|-$/g, "")}-${id.slice(0, 8)}`;
-    await this.database.pool.query(
-      `INSERT INTO products (
-        id, slug, name, description, category_id, seller_id,
-        price_minor, rating, review_count, image_url, stock, status
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,0,0,$8,$9,'HIDDEN')`,
-      [
+    await this.products.save(
+      this.products.create({
         id,
         slug,
-        input.name,
-        input.description,
-        input.categoryId,
+        ...input,
         sellerId,
-        input.priceMinor,
-        input.imageUrl,
-        input.stock,
-      ],
+        rating: 0,
+        reviewCount: 0,
+        status: "HIDDEN",
+      }),
     );
     return { id, slug };
   }
@@ -309,93 +276,106 @@ export class CatalogRepository {
   async setStatus(
     sellerId: string,
     productId: string,
-    status: "ACTIVE" | "HIDDEN" | "DELETED",
+    status: ProductStatus,
   ): Promise<boolean> {
-    // seller_id входит в условие UPDATE: продавец физически не может изменить
-    // чужой товар даже при подмене идентификатора в HTTP-запросе.
-    const result = await this.database.pool.query(
-      `UPDATE products SET status = $3, updated_at = now()
-       WHERE id = $1 AND seller_id = $2 AND status <> 'DELETED'`,
-      [productId, sellerId, status],
+    // Условия владельца и текущего статуса входят в один атомарный ORM update.
+    const result = await this.products.update(
+      {
+        id: productId,
+        sellerId,
+        status: Not("DELETED"),
+      },
+      { status },
     );
-    return result.rowCount === 1;
+    return result.affected === 1;
   }
 
-  private mapProduct(row: ProductRow): ProductCard {
+  private mapProduct(product: ProductEntity): ProductCard {
     return {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      description: row.description,
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      description: product.description,
       category: {
-        id: row.category_id,
-        slug: row.category_slug,
-        name: row.category_name,
+        id: product.category.id,
+        slug: product.category.slug,
+        name: product.category.name,
       },
       seller: {
-        id: row.seller_id,
-        name: row.seller_name,
-        rating: Number(row.seller_rating),
-        reviewCount: row.seller_review_count,
+        id: product.seller.id,
+        name: product.seller.name,
+        rating: product.seller.rating,
+        reviewCount: product.seller.reviewCount,
       },
-      priceMinor: row.price_minor,
+      priceMinor: product.priceMinor,
       currency: "USD",
-      rating: Number(row.rating),
-      reviewCount: row.review_count,
-      imageUrl: row.image_url,
-      inStock: row.stock > 0,
+      rating: product.rating,
+      reviewCount: product.reviewCount,
+      imageUrl: product.imageUrl,
+      inStock: product.stock > 0,
     };
   }
 
-  private async listVariants(productId: string): Promise<ProductVariant[]> {
-    const result = await this.database.pool.query<{
-      id: string;
-      slug: string;
-      name: string;
-      value: string;
-      price_minor: number;
-      stock: number;
-      image_url: string;
-    }>(
-      `SELECT id, slug, name, value, price_minor, stock, image_url
-       FROM product_variants WHERE product_id = $1 ORDER BY price_minor, id`,
-      [productId],
-    );
-    return result.rows.map((row) => ({
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      value: row.value,
-      priceMinor: row.price_minor,
-      stock: row.stock,
-      imageUrl: row.image_url,
-    }));
+  private mapVariant(variant: ProductVariantEntity): ProductVariant {
+    return {
+      id: variant.id,
+      slug: variant.slug,
+      name: variant.name,
+      value: variant.value,
+      priceMinor: variant.priceMinor,
+      stock: variant.stock,
+      imageUrl: variant.imageUrl,
+    };
   }
 
-  private async listReviews(productId: string): Promise<ProductReview[]> {
-    const result = await this.database.pool.query<{
-      id: string;
-      author_name: string;
-      author_avatar_url: string | null;
-      rating: number;
-      review_text: string;
-      created_at: string;
-    }>(
-      `SELECT id, author_name, author_avatar_url, rating, review_text,
-              created_at::text
-       FROM product_reviews
-       WHERE product_id = $1
-       ORDER BY created_at DESC
-       LIMIT 10`,
-      [productId],
-    );
-    return result.rows.map((row) => ({
-      id: row.id,
-      authorName: row.author_name,
-      authorAvatarUrl: row.author_avatar_url,
-      rating: row.rating,
-      text: row.review_text,
-      createdAt: row.created_at,
-    }));
+  private mapReview(review: ProductReviewEntity): ProductReview {
+    return {
+      id: review.id,
+      authorName: review.authorName,
+      authorAvatarUrl: review.authorAvatarUrl,
+      rating: review.rating,
+      text: review.reviewText,
+      createdAt: review.createdAt.toISOString(),
+    };
   }
+}
+
+function buildCategoryGraph(categories: CategoryEntity[]) {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const children = new Map<string, string[]>();
+  for (const category of categories) {
+    if (!category.parentId) {
+      continue;
+    }
+    const group = children.get(category.parentId) ?? [];
+    group.push(category.id);
+    children.set(category.parentId, group);
+  }
+
+  return {
+    depth(id: string): number {
+      let depth = 0;
+      let current = byId.get(id);
+      const visited = new Set<string>();
+      while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        depth += 1;
+        current = current.parentId ? byId.get(current.parentId) : undefined;
+      }
+      return depth;
+    },
+    descendants(id: string): string[] {
+      const result: string[] = [];
+      const pending = [id];
+      while (pending.length > 0) {
+        const current = pending.shift();
+        if (!current || result.includes(current)) {
+          continue;
+        }
+        result.push(current);
+        pending.push(...(children.get(current) ?? []));
+      }
+      return result;
+    },
+  };
 }

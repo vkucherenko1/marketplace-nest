@@ -1,9 +1,11 @@
-import {
-  Injectable,
-  OnApplicationShutdown,
-  OnModuleInit,
-} from "@nestjs/common";
-import { Pool } from "pg";
+import { Injectable, OnModuleInit } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { CategoryEntity } from "./entities/category.entity";
+import { ProductReviewEntity } from "./entities/product-review.entity";
+import { ProductVariantEntity } from "./entities/product-variant.entity";
+import { ProductEntity } from "./entities/product.entity";
+import { SellerEntity } from "./entities/seller.entity";
 
 const categorySeeds = [
   { id: "category-clothes", slug: "clothes", name: "Одежда" },
@@ -77,111 +79,90 @@ const productNames: Record<string, readonly string[]> = {
 };
 
 @Injectable()
-export class DatabaseService implements OnModuleInit, OnApplicationShutdown {
-  readonly pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 30,
-    idleTimeoutMillis: 30_000,
-  });
+export class DatabaseService implements OnModuleInit {
+  constructor(
+    @InjectRepository(CategoryEntity)
+    private readonly categories: Repository<CategoryEntity>,
+    @InjectRepository(SellerEntity)
+    private readonly sellers: Repository<SellerEntity>,
+    @InjectRepository(ProductEntity)
+    private readonly products: Repository<ProductEntity>,
+    @InjectRepository(ProductVariantEntity)
+    private readonly variants: Repository<ProductVariantEntity>,
+    @InjectRepository(ProductReviewEntity)
+    private readonly reviews: Repository<ProductReviewEntity>,
+  ) {}
 
   async onModuleInit(): Promise<void> {
-    // Инициализация при старте используется только для локального preview.
-    // Перед production-релизом схему необходимо вынести в отдельные миграции.
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS categories (
-        id text PRIMARY KEY,
-        slug text UNIQUE NOT NULL,
-        name text NOT NULL,
-        parent_id text REFERENCES categories(id) ON DELETE RESTRICT
-      );
-      ALTER TABLE categories
-        ADD COLUMN IF NOT EXISTS parent_id text REFERENCES categories(id) ON DELETE RESTRICT;
-      CREATE INDEX IF NOT EXISTS categories_parent_idx ON categories(parent_id);
-      CREATE TABLE IF NOT EXISTS sellers (
-        id text PRIMARY KEY,
-        name text NOT NULL,
-        rating numeric(3,2) NOT NULL,
-        review_count integer NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS products (
-        id text PRIMARY KEY,
-        slug text UNIQUE NOT NULL,
-        name text NOT NULL,
-        description text NOT NULL,
-        category_id text NOT NULL REFERENCES categories(id),
-        seller_id text NOT NULL REFERENCES sellers(id),
-        price_minor integer NOT NULL CHECK (price_minor >= 0),
-        currency text NOT NULL DEFAULT 'USD',
-        rating numeric(3,2) NOT NULL,
-        review_count integer NOT NULL,
-        image_url text NOT NULL,
-        stock integer NOT NULL CHECK (stock >= 0),
-        status text NOT NULL DEFAULT 'ACTIVE',
-        created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS product_variants (
-        id text PRIMARY KEY,
-        product_id text NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-        slug text NOT NULL,
-        name text NOT NULL,
-        value text NOT NULL,
-        price_minor integer NOT NULL CHECK (price_minor >= 0),
-        stock integer NOT NULL CHECK (stock >= 0),
-        image_url text NOT NULL,
-        UNIQUE(product_id, slug)
-      );
-      CREATE TABLE IF NOT EXISTS product_reviews (
-        id text PRIMARY KEY,
-        product_id text NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-        author_name text NOT NULL,
-        author_avatar_url text,
-        rating integer NOT NULL CHECK (rating BETWEEN 1 AND 5),
-        review_text text NOT NULL,
-        created_at timestamptz NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS product_variants_product_idx
-        ON product_variants(product_id);
-      CREATE INDEX IF NOT EXISTS product_reviews_product_idx
-        ON product_reviews(product_id, created_at DESC);
-      CREATE INDEX IF NOT EXISTS products_listing_idx
-        ON products(category_id, status, rating DESC, price_minor);
-      CREATE INDEX IF NOT EXISTS products_seller_idx
-        ON products(seller_id, status);
-    `);
-
-    for (const category of categorySeeds) {
-      await this.pool.query(
-        `INSERT INTO categories (id, slug, name) VALUES ($1, $2, $3)
-         ON CONFLICT (id) DO NOTHING`,
-        [category.id, category.slug, category.name],
-      );
+    await this.seedCategories();
+    await this.seedSellers();
+    if ((await this.products.count()) === 0) {
+      // Большой preview-seed вставляется пакетами через ORM, чтобы старт
+      // оставался быстрым и не создавал десятки тысяч отдельных запросов.
+      await this.seedProducts();
     }
-    await this.seedExtendedCategories();
-    for (let sellerIndex = 0; sellerIndex < sellerNames.length; sellerIndex += 1) {
-      await this.pool.query(
-        `INSERT INTO sellers (id, name, rating, review_count)
-         VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
-        [
-          `seller-${sellerIndex + 1}`,
-          sellerNames[sellerIndex],
-          4.55 + sellerIndex * 0.08,
-          120 + sellerIndex * 47,
-        ],
-      );
-    }
-    await this.seedProducts();
-    await this.seedExtendedProducts();
   }
 
-  async onApplicationShutdown(): Promise<void> {
-    await this.pool.end();
+  private async seedCategories(): Promise<void> {
+    await this.insertIgnoring(
+      this.categories,
+      categorySeeds.map((category) => ({ ...category, parentId: null })),
+    );
+
+    const roots = extendedCategorySeeds.map(([slug, name]) => ({
+      id: `category-${slug}`,
+      slug,
+      name,
+      parentId: null,
+    }));
+    await this.insertIgnoring(this.categories, roots);
+
+    const parentIndexesByRoot = [
+      [null, null, null, null, null],
+      [null, 0, 0, 1, 1],
+      [null, 0, 1, 2, 2],
+    ] as const;
+    for (let childIndex = 0; childIndex < 5; childIndex += 1) {
+      const levelItems = extendedCategorySeeds.map(
+        ([rootSlug, rootName], rootIndex) => {
+          const rootId = `category-${rootSlug}`;
+          const parentIndex =
+            parentIndexesByRoot[rootIndex % parentIndexesByRoot.length]?.[
+              childIndex
+            ] ?? null;
+          return {
+            id: `${rootId}-sub-${childIndex + 1}`,
+            slug: `${rootSlug}-sub-${childIndex + 1}`,
+            name: `${rootName}: раздел ${childIndex + 1}`,
+            parentId:
+              parentIndex === null
+                ? rootId
+                : `${rootId}-sub-${parentIndex + 1}`,
+          };
+        },
+      );
+      await this.insertIgnoring(this.categories, levelItems);
+    }
+  }
+
+  private async seedSellers(): Promise<void> {
+    await this.insertIgnoring(
+      this.sellers,
+      sellerNames.map((name, index) => ({
+        id: `seller-${index + 1}`,
+        name,
+        rating: 4.55 + index * 0.08,
+        reviewCount: 120 + index * 47,
+      })),
+    );
   }
 
   private async seedProducts(): Promise<void> {
-    // Seed детерминирован: одинаковые входные данные дают те же 150 товаров,
-    // поэтому E2E-тесты и скриншоты не зависят от случайных значений.
+    const products: Array<Partial<ProductEntity>> = [];
+    const variants: Array<Partial<ProductVariantEntity>> = [];
+    const reviews: Array<Partial<ProductReviewEntity>> = [];
     let sequence = 0;
+
     for (const category of categorySeeds) {
       for (let sellerIndex = 0; sellerIndex < 5; sellerIndex += 1) {
         for (let productIndex = 0; productIndex < 10; productIndex += 1) {
@@ -190,120 +171,86 @@ export class DatabaseService implements OnModuleInit, OnApplicationShutdown {
           const baseName = productNames[category.slug]?.[productIndex] ?? "Товар";
           const name = `${baseName} ${sellerNames[sellerIndex]}`;
           const categoryBase =
-            category.slug === "laptops" ? 54900 : category.slug === "clothes" ? 2900 : 1900;
+            category.slug === "laptops"
+              ? 54_900
+              : category.slug === "clothes"
+                ? 2_900
+                : 1_900;
           const priceMinor =
-            categoryBase + sellerIndex * 1700 + productIndex * (category.slug === "laptops" ? 5300 : 740);
-          await this.pool.query(
-            `INSERT INTO products (
-               id, slug, name, description, category_id, seller_id, price_minor,
-               rating, review_count, image_url, stock
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-             ON CONFLICT (id) DO NOTHING`,
-            [
-              id,
-              `${category.slug}-${sellerIndex + 1}-${productIndex + 1}`,
-              name,
-              `Проверенный товар от ${sellerNames[sellerIndex]}. Быстрая отправка, гарантия качества и удобный возврат.`,
-              category.id,
-              `seller-${sellerIndex + 1}`,
-              priceMinor,
-              3.9 + ((sellerIndex + productIndex) % 10) * 0.1,
-              8 + ((sellerIndex * 31 + productIndex * 13) % 180),
-              `https://picsum.photos/seed/${category.slug}-${sellerIndex}-${productIndex}/720/540`,
-              4 + ((sellerIndex * 7 + productIndex * 11) % 55),
-            ],
-          );
-          await this.seedProductDetails({
+            categoryBase +
+            sellerIndex * 1_700 +
+            productIndex * (category.slug === "laptops" ? 5_300 : 740);
+          products.push({
             id,
+            slug: `${category.slug}-${sellerIndex + 1}-${productIndex + 1}`,
+            name,
+            description: `Проверенный товар от ${sellerNames[sellerIndex]}. Быстрая отправка, гарантия качества и удобный возврат.`,
+            categoryId: category.id,
+            sellerId: `seller-${sellerIndex + 1}`,
+            priceMinor,
+            rating: 3.9 + ((sellerIndex + productIndex) % 10) * 0.1,
+            reviewCount: 8 + ((sellerIndex * 31 + productIndex * 13) % 180),
+            imageUrl: `https://picsum.photos/seed/${category.slug}-${sellerIndex}-${productIndex}/720/540`,
+            stock: 4 + ((sellerIndex * 7 + productIndex * 11) % 55),
+            status: "ACTIVE",
+          });
+          this.addProductDetails({
+            productId: id,
             categorySlug: category.slug,
             basePrice: priceMinor,
             imageSeed: `${category.slug}-${sellerIndex}-${productIndex}`,
             sequence,
+            variants,
+            reviews,
           });
         }
       }
     }
-  }
 
-  private async seedExtendedCategories(): Promise<void> {
-    for (let rootIndex = 0; rootIndex < extendedCategorySeeds.length; rootIndex += 1) {
-      const [rootSlug, rootName] = extendedCategorySeeds[rootIndex]!;
-      const rootId = `category-${rootSlug}`;
-      await this.pool.query(
-        `INSERT INTO categories (id, slug, name, parent_id)
-         VALUES ($1, $2, $3, NULL) ON CONFLICT (id) DO NOTHING`,
-        [rootId, rootSlug, rootName],
-      );
-
-      // Пять дочерних узлов образуют разные формы дерева, но ни одна ветка
-      // не превышает ограничение маркетплейса в пять уровней.
-      const parentIndexesByRoot = [
-        [null, null, null, null, null],
-        [null, 0, 0, 1, 1],
-        [null, 0, 1, 2, 2],
-      ] as const;
-      const shape = parentIndexesByRoot[rootIndex % parentIndexesByRoot.length]!;
-      for (let childIndex = 0; childIndex < 5; childIndex += 1) {
-        const childNumber = childIndex + 1;
-        const childId = `${rootId}-sub-${childNumber}`;
-        const parentIndex = shape[childIndex] ?? null;
-        const parentId =
-          parentIndex === null ? rootId : `${rootId}-sub-${parentIndex + 1}`;
-        await this.pool.query(
-          `INSERT INTO categories (id, slug, name, parent_id)
-           VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
-          [
-            childId,
-            `${rootSlug}-sub-${childNumber}`,
-            `${rootName}: раздел ${childNumber}`,
-            parentId,
-          ],
-        );
+    const extendedCategories = await this.categories.find({
+      where: extendedCategorySeeds.flatMap(([slug]) => [
+        { id: `category-${slug}` },
+        ...Array.from({ length: 5 }, (_, index) => ({
+          id: `category-${slug}-sub-${index + 1}`,
+        })),
+      ]),
+    });
+    for (const category of extendedCategories) {
+      const hash = stableHash(category.slug);
+      const count = 150 + (hash % 351);
+      for (let number = 1; number <= count; number += 1) {
+        products.push({
+          id: `generated-${category.slug}-${number}`,
+          slug: `${category.slug}-item-${number}`,
+          name: `${category.name} — товар ${number}`,
+          description: `Демонстрационный товар категории «${category.name}». Подробное описание, гарантия качества и удобная доставка.`,
+          categoryId: category.id,
+          sellerId: `seller-${((number - 1) % 5) + 1}`,
+          priceMinor: 1_200 + ((hash + number * 137) % 250_000),
+          rating: 3.8 + ((number + hash) % 13) / 10,
+          reviewCount: 5 + ((number * 17 + hash) % 480),
+          imageUrl: `https://picsum.photos/seed/${category.slug}-${number}/720/540`,
+          stock: 1 + ((number * 11 + hash) % 100),
+          status: "ACTIVE",
+        });
       }
     }
+
+    await this.insertIgnoring(this.products, products, 1_000);
+    await this.insertIgnoring(this.variants, variants, 1_000);
+    await this.insertIgnoring(this.reviews, reviews, 1_000);
   }
 
-  private async seedExtendedProducts(): Promise<void> {
-    // PostgreSQL создаёт весь объём одним пакетным запросом: локальный запуск
-    // остаётся быстрым даже при десятках тысяч демонстрационных товаров.
-    await this.pool.query(`
-      INSERT INTO products (
-        id, slug, name, description, category_id, seller_id, price_minor,
-        rating, review_count, image_url, stock, status
-      )
-      SELECT
-        'generated-' || c.slug || '-' || series.number,
-        c.slug || '-item-' || series.number,
-        c.name || ' — товар ' || series.number,
-        'Демонстрационный товар категории «' || c.name ||
-          '». Подробное описание, гарантия качества и удобная доставка.',
-        c.id,
-        'seller-' || (((series.number - 1) % 5) + 1),
-        1200 + ((abs(hashtext(c.slug)) + series.number * 137) % 250000),
-        3.8 + (((series.number + abs(hashtext(c.slug))) % 13) / 10.0),
-        5 + ((series.number * 17 + abs(hashtext(c.slug))) % 480),
-        'https://picsum.photos/seed/' || c.slug || '-' || series.number || '/720/540',
-        1 + ((series.number * 11 + abs(hashtext(c.slug))) % 100),
-        'ACTIVE'
-      FROM categories c
-      CROSS JOIN LATERAL generate_series(
-        1,
-        150 + (abs(hashtext(c.slug)) % 351)
-      ) AS series(number)
-      WHERE c.id LIKE 'category-%'
-        AND c.id NOT IN ('category-clothes', 'category-laptops', 'category-toys')
-      ON CONFLICT (id) DO NOTHING
-    `);
-  }
-
-  private async seedProductDetails(input: {
-    id: string;
+  private addProductDetails(input: {
+    productId: string;
     categorySlug: string;
     basePrice: number;
     imageSeed: string;
     sequence: number;
-  }): Promise<void> {
-    const variants =
+    variants: Array<Partial<ProductVariantEntity>>;
+    reviews: Array<Partial<ProductReviewEntity>>;
+  }): void {
+    const variantValues: ReadonlyArray<readonly [string, string, string]> =
       input.categorySlug === "clothes"
         ? [["s", "Размер", "S"], ["m", "Размер", "M"], ["l", "Размер", "L"]]
         : input.categorySlug === "laptops"
@@ -317,26 +264,20 @@ export class DatabaseService implements OnModuleInit, OnApplicationShutdown {
               ["coral", "Цвет", "Коралловый"],
               ["blue", "Цвет", "Синий"],
             ];
-
-    for (let index = 0; index < variants.length; index += 1) {
-      const [slug, name, value] = variants[index]!;
-      await this.pool.query(
-        `INSERT INTO product_variants (
-           id, product_id, slug, name, value, price_minor, stock, image_url
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-         ON CONFLICT (product_id, slug) DO NOTHING`,
-        [
-          `${input.id}-variant-${index + 1}`,
-          input.id,
-          slug,
-          name,
-          value,
-          input.basePrice + index * Math.max(500, Math.round(input.basePrice * 0.08)),
-          4 + ((input.sequence + index * 7) % 18),
-          `https://picsum.photos/seed/${input.imageSeed}-variant-${index}/720/540`,
-        ],
-      );
-    }
+    variantValues.forEach(([slug, name, value], index) => {
+      input.variants.push({
+        id: `${input.productId}-variant-${index + 1}`,
+        productId: input.productId,
+        slug,
+        name,
+        value,
+        priceMinor:
+          input.basePrice +
+          index * Math.max(500, Math.round(input.basePrice * 0.08)),
+        stock: 4 + ((input.sequence + index * 7) % 18),
+        imageUrl: `https://picsum.photos/seed/${input.imageSeed}-variant-${index}/720/540`,
+      });
+    });
 
     const reviewTexts = [
       "Товар соответствует описанию, качество хорошее. Доставка пришла вовремя.",
@@ -344,23 +285,39 @@ export class DatabaseService implements OnModuleInit, OnApplicationShutdown {
       "Продавец быстро ответил на вопросы. Покупкой доволен, могу рекомендовать.",
     ];
     const authors = ["Елена К.", "Михаил Р.", "Ольга Н."];
-    for (let index = 0; index < reviewTexts.length; index += 1) {
-      await this.pool.query(
-        `INSERT INTO product_reviews (
-           id, product_id, author_name, author_avatar_url, rating,
-           review_text, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7)
-         ON CONFLICT (id) DO NOTHING`,
-        [
-          `${input.id}-review-${index + 1}`,
-          input.id,
-          authors[index],
-          `https://picsum.photos/seed/reviewer-${input.sequence}-${index}/96/96`,
-          4 + ((input.sequence + index) % 2),
-          reviewTexts[index],
-          new Date(Date.UTC(2026, 4, 20 - index)).toISOString(),
-        ],
-      );
+    reviewTexts.forEach((reviewText, index) => {
+      input.reviews.push({
+        id: `${input.productId}-review-${index + 1}`,
+        productId: input.productId,
+        authorName: authors[index]!,
+        authorAvatarUrl: `https://picsum.photos/seed/reviewer-${input.sequence}-${index}/96/96`,
+        rating: 4 + ((input.sequence + index) % 2),
+        reviewText,
+        createdAt: new Date(Date.UTC(2026, 4, 20 - index)),
+      });
+    });
+  }
+
+  private async insertIgnoring<T extends object>(
+    repository: Repository<T>,
+    values: Array<Partial<T>>,
+    chunkSize = 250,
+  ): Promise<void> {
+    for (let offset = 0; offset < values.length; offset += chunkSize) {
+      await repository
+        .createQueryBuilder()
+        .insert()
+        .values(values.slice(offset, offset + chunkSize) as never)
+        .orIgnore()
+        .execute();
     }
   }
+}
+
+function stableHash(value: string): number {
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  }
+  return Math.abs(hash);
 }
