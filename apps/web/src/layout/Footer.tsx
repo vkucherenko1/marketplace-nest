@@ -5,7 +5,7 @@ export function Footer() {
         <strong className="text-2xl font-extrabold text-lime">MARKET.</strong>
         <p className="max-w-xl text-sm leading-6 text-ink/55">
           Локальный preview микросервисного маркетплейса на NestJS, React и
-          TypeScript. Каталог, роли и инфраструктура развиваются по TASKS.md.
+          TypeScript. Каталог, роли и инфраструктура развиваются итерационно.
         </p>
       </div>
     </footer>

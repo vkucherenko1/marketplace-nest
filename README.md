@@ -36,5 +36,3 @@ Demo users use the password `Marketplace123!`:
 npm install
 npm run dev
 ```
-
-See [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) and [TASKS.md](TASKS.md).
