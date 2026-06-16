@@ -1,38 +1,77 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BadgePercent, ShieldCheck, Truck } from "lucide-react";
+import type { ReactNode } from "react";
 
 export function Hero() {
   return (
-    <section className="mx-auto grid max-w-[1500px] gap-8 px-5 pb-12 pt-10 lg:grid-cols-[1.3fr_.7fr] lg:px-10 lg:pt-16">
-      <div className="flex min-h-[420px] flex-col justify-between rounded-[2rem] bg-ink p-7 text-white lg:p-12">
-        <div className="w-fit rounded-full border border-white/20 px-4 py-2 text-xs uppercase tracking-[.2em]">
-          Новый маркетплейс
+    <section className="mx-auto max-w-[1500px] px-4 pb-8 pt-5 lg:px-8">
+      <div className="grid gap-4 lg:grid-cols-[1.55fr_.45fr]">
+        <div className="relative flex min-h-[330px] overflow-hidden rounded-3xl bg-gradient-to-br from-lime via-blue-600 to-coral p-7 text-white lg:p-10">
+          <div className="relative z-10 flex max-w-2xl flex-col justify-between">
+            <div className="w-fit rounded-full bg-white/15 px-4 py-2 text-xs font-semibold backdrop-blur">
+              Большая летняя распродажа
+            </div>
+            <div>
+              <h1 className="text-4xl font-extrabold leading-[1.02] tracking-[-.05em] sm:text-6xl">
+                Всё нужное
+                <span className="block text-white/80">
+                  по отличным ценам
+                </span>
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-7 text-white/80">
+                Тысячи товаров от проверенных продавцов с быстрой доставкой.
+              </p>
+              <a
+                className="mt-6 inline-flex w-fit items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-lime"
+                href="#catalog"
+              >
+                Смотреть товары <ArrowRight size={18} />
+              </a>
+            </div>
+          </div>
+          <div className="absolute -bottom-24 -right-12 h-80 w-80 rounded-full bg-white/15" />
+          <div className="absolute right-24 top-10 h-28 w-28 rotate-12 rounded-3xl bg-white/10" />
         </div>
-        <div>
-          <h1 className="max-w-4xl text-5xl font-semibold leading-[.95] tracking-[-.055em] sm:text-7xl">
-            Вещи, которые
-            <span className="block text-lime">попадают в точку.</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-7 text-white/65">
-            Прозрачные продавцы, живые рейтинги и аккуратная подборка без
-            бесконечного шума.
-          </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <PromoCard
+            icon={<BadgePercent size={25} />}
+            title="Скидки до 40%"
+            text="На популярные товары недели"
+          />
+          <PromoCard
+            icon={<Truck size={25} />}
+            title="Быстрая доставка"
+            text="Следите за заказом онлайн"
+          />
         </div>
       </div>
-      <div className="relative min-h-[420px] overflow-hidden rounded-[2rem] bg-coral p-8">
-        <div className="absolute -right-16 top-8 h-64 w-64 rounded-full bg-lime" />
-        <div className="absolute bottom-[-7rem] left-[-3rem] h-80 w-80 rounded-full border-[45px] border-ink" />
-        <div className="relative flex h-full flex-col justify-between">
-          <p className="max-w-xs text-2xl font-semibold leading-tight">
-            150 товаров уже ждут локального запуска.
-          </p>
-          <a
-            className="flex w-fit items-center gap-3 rounded-full bg-white px-5 py-3 text-sm font-semibold"
-            href="#catalog"
-          >
-            Смотреть каталог <ArrowRight size={17} />
-          </a>
-        </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <Benefit icon={<ShieldCheck size={20} />} title="Безопасная оплата" />
+        <Benefit icon={<Truck size={20} />} title="Удобная доставка" />
+        <Benefit icon={<BadgePercent size={20} />} title="Выгодные предложения" />
       </div>
     </section>
+  );
+}
+
+function PromoCard(props: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <article className="flex min-h-[157px] flex-col justify-between rounded-3xl bg-white p-6 shadow-card">
+      <span className="grid h-11 w-11 place-items-center rounded-xl bg-lime/10 text-lime">
+        {props.icon}
+      </span>
+      <div>
+        <strong className="block text-xl">{props.title}</strong>
+        <span className="mt-1 block text-sm text-ink/50">{props.text}</span>
+      </div>
+    </article>
+  );
+}
+
+function Benefit(props: { icon: ReactNode; title: string }) {
+  return (
+    <div className="flex items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-semibold">
+      <span className="text-lime">{props.icon}</span>
+      {props.title}
+    </div>
   );
 }

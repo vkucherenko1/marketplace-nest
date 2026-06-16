@@ -6,6 +6,7 @@ import { api } from "../api";
 import { useCart } from "../features/cart/CartProvider";
 import { money } from "../shared/format";
 import { rememberProduct } from "../storage";
+import { ProductReviews } from "../features/product/ProductReviews";
 
 export function ProductPage() {
   const { slug = "", variantSlug } = useParams();
@@ -52,7 +53,7 @@ export function ProductPage() {
   const isInCart = cart.has(product, selectedVariant);
 
   return (
-    <section className="mx-auto max-w-[1500px] px-5 py-10 lg:px-10 lg:py-16">
+    <section className="mx-auto max-w-[1500px] px-4 py-8 lg:px-8">
       <nav className="mb-7 flex flex-wrap gap-2 text-sm text-ink/50">
         <Link to="/">Главная</Link>
         <span>/</span>
@@ -65,17 +66,17 @@ export function ProductPage() {
         <span className="text-ink">{product.name}</span>
       </nav>
 
-      <div className="grid gap-8 rounded-[2rem] bg-white p-6 shadow-card lg:grid-cols-[42%_58%] lg:p-10">
+      <div className="grid gap-8 rounded-3xl bg-white p-5 shadow-card lg:grid-cols-[38%_1fr_320px] lg:p-8">
         <div className="flex items-start justify-center">
           <img
-            className="max-h-[480px] w-full rounded-[1.5rem] object-cover"
+            className="max-h-[430px] w-full rounded-2xl object-cover"
             src={displayedImage}
             alt={product.name}
           />
         </div>
-        <div className="flex flex-col pr-0 lg:pr-8">
+        <div className="flex flex-col">
           <p className="eyebrow">{product.category.name}</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight lg:text-5xl">
+          <h1 className="mt-3 text-3xl font-bold tracking-tight lg:text-4xl">
             {product.name}
           </h1>
           <Link
@@ -96,8 +97,12 @@ export function ProductPage() {
             selected={selectedVariant}
           />
 
-          <div className="mt-auto pt-8">
-            <p className="text-4xl font-bold">
+        </div>
+
+        {/* Цена и главное действие вынесены в отдельный блок, как на крупных витринах. */}
+        <aside className="h-fit rounded-2xl border border-ink/8 bg-cream p-5">
+          <div>
+            <p className="text-3xl font-extrabold text-lime">
               {money.format(displayedPrice / 100)}
             </p>
             <p className="mt-2 text-sm text-ink/55">
@@ -107,14 +112,14 @@ export function ProductPage() {
             </p>
             {isInCart ? (
               <Link
-                className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-lime px-6 py-4 font-bold text-ink"
+                className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-lime/10 px-6 py-4 font-bold text-lime"
                 to="/cart"
               >
                 <Check size={19} /> В корзине — перейти
               </Link>
             ) : (
               <button
-                className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-ink px-6 py-4 font-bold text-white disabled:opacity-50"
+                className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-lime px-6 py-4 font-bold text-white disabled:opacity-50"
                 disabled={!inStock}
                 onClick={() => {
                   cart.add(product, selectedVariant);
@@ -126,11 +131,15 @@ export function ProductPage() {
               </button>
             )}
           </div>
-        </div>
+          <div className="mt-5 border-t border-ink/10 pt-5 text-sm leading-6 text-ink/60">
+            Доставка от 1 дня<br />
+            Оплата онлайн или при получении
+          </div>
+        </aside>
       </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.25fr_.75fr]">
-        <article className="rounded-[2rem] bg-white p-7 lg:p-10">
+        <article className="rounded-3xl bg-white p-7 lg:p-10">
           <p className="eyebrow">Описание</p>
           <h2 className="mt-2 text-3xl font-semibold">О товаре</h2>
           <p className="mt-6 text-lg leading-9 text-ink/70">
@@ -142,58 +151,34 @@ export function ProductPage() {
             правилами возврата маркетплейса.
           </p>
         </article>
-        <aside className="rounded-[2rem] bg-lime p-7 lg:p-10">
+        <Link
+          className="group rounded-3xl bg-white p-7 shadow-card transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime/20 lg:p-10"
+          to={`/seller/${product.seller.id}`}
+          onClick={() =>
+            sessionStorage.setItem(
+              `marketplace-seller:${product.seller.id}`,
+              JSON.stringify(product.seller),
+            )
+          }
+        >
           <p className="eyebrow">Продавец</p>
           <h2 className="mt-2 text-3xl font-semibold">{product.seller.name}</h2>
-          <p className="mt-5 text-5xl font-bold">
+          <p className="mt-5 text-5xl font-bold text-lime">
             {product.seller.rating.toFixed(1)}
           </p>
           <p className="mt-2 text-sm">
             На основе {product.seller.reviewCount} отзывов покупателей
           </p>
-        </aside>
+          <span className="mt-6 block text-sm font-semibold text-lime">
+            Смотреть все товары продавца →
+          </span>
+        </Link>
       </div>
 
-      <section className="mt-8 rounded-[2rem] bg-white p-7 lg:p-10">
-        <p className="eyebrow">Отзывы покупателей</p>
-        <h2 className="mt-2 text-3xl font-semibold">
-          Что говорят о товаре
-        </h2>
-        <div className="mt-7 grid gap-4 lg:grid-cols-3">
-          {product.reviews.map((review) => (
-            <article
-              key={review.id}
-              className="rounded-2xl border border-ink/10 p-5"
-            >
-              <div className="flex items-center gap-3">
-                {review.authorAvatarUrl && (
-                  <img
-                    className="h-11 w-11 rounded-full object-cover"
-                    src={review.authorAvatarUrl}
-                    alt=""
-                  />
-                )}
-                <div>
-                  <strong className="block">{review.authorName}</strong>
-                  <span className="text-xs text-ink/45">
-                    {new Date(review.createdAt).toLocaleDateString("ru-RU")}
-                  </span>
-                </div>
-              </div>
-              <div className="mt-4 flex gap-1 text-amber-500">
-                {Array.from({ length: 5 }, (_, index) => (
-                  <Star
-                    key={index}
-                    className={index < review.rating ? "fill-current" : ""}
-                    size={16}
-                  />
-                ))}
-              </div>
-              <p className="mt-4 leading-7 text-ink/70">{review.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <ProductReviews
+        productSlug={product.slug}
+        reviewCount={product.reviewCount}
+      />
     </section>
   );
 }
@@ -215,8 +200,8 @@ function VariantSelector(props: {
             key={variant.id}
             className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
               props.selected?.id === variant.id
-                ? "border-ink bg-ink text-white"
-                : "border-ink/15 hover:border-ink"
+                ? "border-lime bg-lime/10 text-lime"
+                : "border-ink/15 hover:border-lime"
             }`}
             to={`/product/${props.productSlug}/variant/${variant.slug}`}
           >

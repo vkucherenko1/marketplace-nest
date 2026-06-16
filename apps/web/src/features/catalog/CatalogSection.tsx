@@ -6,20 +6,24 @@ import { useCatalog } from "./useCatalog";
 
 export function CatalogSection(props: {
   categorySlug?: string;
+  sellerId?: string;
+  title?: string;
   showCategoryFilters?: boolean;
 }) {
-  const catalog = useCatalog(props.categorySlug);
+  const catalog = useCatalog(props.categorySlug, props.sellerId);
   const cart = useCart();
 
   return (
-    <section id="catalog" className="mx-auto max-w-[1500px] px-5 py-10 lg:px-10">
+    <section id="catalog" className="mx-auto max-w-[1500px] px-4 py-8 lg:px-8">
       <CatalogFilters
         categories={catalog.categories}
         category={catalog.category}
         search={catalog.search}
         sort={catalog.sort}
         showCategoryFilters={props.showCategoryFilters ?? true}
+        {...(props.title ? { title: props.title } : {})}
         onCategoryChange={catalog.setCategory}
+        {...(props.sellerId ? { categoryBasePath: `/seller/${props.sellerId}` } : {})}
         onSearch={catalog.setSearch}
         onSortChange={catalog.setSort}
       />
@@ -30,12 +34,12 @@ export function CatalogSection(props: {
         </div>
       )}
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {catalog.loading
           ? Array.from({ length: 8 }, (_, index) => (
               <div
                 key={index}
-                className="h-[430px] animate-pulse rounded-[1.5rem] bg-white/70"
+                className="h-[390px] animate-pulse rounded-2xl bg-white/70"
               />
             ))
           : catalog.products.items.map((product) => (

@@ -1,5 +1,13 @@
-import { PAGE_SIZES, PRODUCT_SORTS } from "@marketplace/contracts";
-import type { PageSize, ProductSort } from "@marketplace/contracts";
+import {
+  PAGE_SIZES,
+  PRODUCT_SORTS,
+  REVIEW_SORTS,
+} from "@marketplace/contracts";
+import type {
+  PageSize,
+  ProductSort,
+  ReviewSort,
+} from "@marketplace/contracts";
 import { Transform, Type } from "class-transformer";
 import {
   IsIn,
@@ -21,6 +29,10 @@ export class ProductListQueryDto {
 
   @IsOptional()
   @IsString()
+  sellerId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(100)
   search?: string;
 
@@ -28,6 +40,19 @@ export class ProductListQueryDto {
   @IsIn(PRODUCT_SORTS)
   sort: ProductSort = "relevance";
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsIn(PAGE_SIZES)
+  pageSize: PageSize = 20;
+}
+
+export class SellerProductsQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -66,6 +91,32 @@ export class CreateProductDto {
   @Min(0)
   @Max(1_000_000)
   stock!: number;
+}
+
+export class ProductReviewsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  pageSize = 6;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @IsOptional()
+  @IsIn(REVIEW_SORTS)
+  sort: ReviewSort = "newest";
 }
 
 export class SaveCategoryDto {

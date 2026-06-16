@@ -7,6 +7,10 @@ import type {
   ProductCard,
   ProductDetail,
   ProductReview,
+  ProductReviewsResponse,
+  PlatformOverview,
+  ReviewSort,
+  SellerProduct,
   ProductSort,
   ProductVariant,
   SaveCategory,
@@ -144,6 +148,7 @@ export class CatalogRepository {
 
   async listProducts(input: {
     category?: string;
+    sellerId?: string;
     search?: string;
     sort: ProductSort;
     page: number;
@@ -173,6 +178,12 @@ export class CatalogRepository {
         };
       }
       query.andWhere({ categoryId: In(categoryIds) });
+    }
+
+    if (input.sellerId) {
+      query.andWhere("product.sellerId = :sellerId", {
+        sellerId: input.sellerId,
+      });
     }
 
     if (input.search) {
@@ -222,7 +233,6 @@ export class CatalogRepository {
         category: true,
         seller: true,
         variants: true,
-        reviews: true,
       },
     });
     if (!product) {
@@ -236,10 +246,49 @@ export class CatalogRepository {
             left.priceMinor - right.priceMinor || left.id.localeCompare(right.id),
         )
         .map((variant) => this.mapVariant(variant)),
-      reviews: product.reviews
-        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-        .slice(0, 10)
-        .map((review) => this.mapReview(review)),
+      reviews: [],
+    };
+  }
+
+  async listProductReviews(
+    slug: string,
+    input: {
+      page: number;
+      pageSize: number;
+      rating?: number;
+      sort: ReviewSort;
+    },
+  ): Promise<ProductReviewsResponse | null> {
+    const product = await this.products.findOne({
+      where: { slug, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!product) {
+      return null;
+    }
+
+    const query = this.reviews
+      .createQueryBuilder("review")
+      .where("review.productId = :productId", { productId: product.id });
+    if (input.rating) {
+      query.andWhere("review.rating = :rating", { rating: input.rating });
+    }
+    query
+      .orderBy(
+        "review.createdAt",
+        input.sort === "oldest" ? "ASC" : "DESC",
+      )
+      .addOrderBy("review.id", "ASC")
+      .skip((input.page - 1) * input.pageSize)
+      .take(input.pageSize);
+
+    const [reviews, total] = await query.getManyAndCount();
+    return {
+      items: reviews.map((review) => this.mapReview(review)),
+      page: input.page,
+      pageSize: input.pageSize,
+      total,
+      totalPages: Math.ceil(total / input.pageSize),
     };
   }
 
@@ -271,6 +320,71 @@ export class CatalogRepository {
       }),
     );
     return { id, slug };
+  }
+
+  async listSellerProducts(
+    sellerId: string,
+    page: number,
+    pageSize: PageSize,
+  ): Promise<PaginatedResponse<SellerProduct>> {
+    // Кабинет продавца читает товары страницами, чтобы объём ответа не рос
+    // вместе с ассортиментом и не перегружал браузер при high-load сценариях.
+    const [products, total] = await this.products.findAndCount({
+      where: { sellerId, status: Not("DELETED") },
+      relations: { category: true },
+      order: { updatedAt: "DESC" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+    return {
+      items: products.map((product) => ({
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        category: {
+          id: product.category.id,
+          slug: product.category.slug,
+          name: product.category.name,
+        },
+        priceMinor: product.priceMinor,
+        stock: product.stock,
+        status: product.status,
+        rating: product.rating,
+        reviewCount: product.reviewCount,
+        imageUrl: product.imageUrl,
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async platformOverview(): Promise<PlatformOverview> {
+    const [
+      categories,
+      activeProducts,
+      hiddenProducts,
+      sellers,
+      reviews,
+    ] = await Promise.all([
+      this.categories.count(),
+      this.products.countBy({ status: "ACTIVE" }),
+      this.products.countBy({ status: "HIDDEN" }),
+      this.products
+        .createQueryBuilder("product")
+        .select("COUNT(DISTINCT product.sellerId)", "count")
+        .where("product.status != :status", { status: "DELETED" })
+        .getRawOne<{ count: string }>(),
+      this.reviews.count(),
+    ]);
+    return {
+      categories,
+      activeProducts,
+      hiddenProducts,
+      sellers: Number(sellers?.count ?? 0),
+      reviews,
+    };
   }
 
   async setStatus(

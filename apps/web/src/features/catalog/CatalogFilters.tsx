@@ -33,6 +33,8 @@ export function CatalogFilters(props: {
   search: string;
   sort: ProductSort;
   showCategoryFilters: boolean;
+  title?: string;
+  categoryBasePath?: string;
   onCategoryChange: (value: string) => void;
   onSearch: (value: string) => void;
   onSortChange: (value: ProductSort) => void;
@@ -52,13 +54,15 @@ export function CatalogFilters(props: {
 
   return (
     <>
-      <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+      <div className="mb-6 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
-          <p className="eyebrow">Каталог</p>
-          <h2 className="section-title">Найдите своё</h2>
+          <p className="eyebrow">Каталог товаров</p>
+          <h2 className="section-title">
+            {props.title ?? "Популярное для вас"}
+          </h2>
         </div>
         <form
-          className="flex w-full max-w-xl rounded-full border border-ink/15 bg-white p-1.5 shadow-sm"
+          className="flex w-full max-w-xl rounded-xl border border-ink/10 bg-white p-1 shadow-sm"
           onSubmit={(event) => {
             event.preventDefault();
             props.onSearch(searchInput.trim());
@@ -71,7 +75,7 @@ export function CatalogFilters(props: {
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
-          <button className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white">
+          <button className="rounded-lg bg-lime px-5 py-2.5 text-sm font-semibold text-white">
             Найти
           </button>
         </form>
@@ -84,7 +88,7 @@ export function CatalogFilters(props: {
               active={!props.category}
               label="Все товары"
               count={total}
-              to="/catalog"
+              to={props.categoryBasePath ?? "/catalog"}
             />
             {rootCategories.map((item) => (
               <FilterButton
@@ -92,7 +96,11 @@ export function CatalogFilters(props: {
                 active={props.category === item.slug}
                 label={item.name}
                 count={item.productCount}
-                to={`/category/${item.slug}`}
+                to={
+                  props.categoryBasePath
+                    ? `${props.categoryBasePath}?category=${encodeURIComponent(item.slug)}`
+                    : `/category/${item.slug}`
+                }
               />
             ))}
           </>
@@ -117,8 +125,8 @@ function FilterButton(props: {
 }) {
   return (
     <Link
-      className={`rounded-full px-4 py-2.5 text-sm font-medium transition ${
-        props.active ? "bg-ink text-white" : "border border-ink/15 hover:bg-white"
+      className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+        props.active ? "bg-lime text-white" : "bg-white hover:text-lime"
       }`}
       to={props.to}
     >

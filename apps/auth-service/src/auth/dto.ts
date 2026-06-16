@@ -1,13 +1,21 @@
 import {
+  ArrayNotEmpty,
+  ArrayUnique,
+  IsArray,
   IsDateString,
   IsEmail,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUrl,
   MaxLength,
+  Min,
   MinLength,
 } from "class-validator";
+import { PAGE_SIZES, USER_ROLES } from "@marketplace/contracts";
+import type { PageSize, UserRole } from "@marketplace/contracts";
+import { Transform, Type } from "class-transformer";
 
 export class LoginDto {
   @IsEmail()
@@ -21,6 +29,27 @@ export class LoginDto {
 export class RefreshDto {
   @IsString()
   refreshToken!: string;
+}
+
+export class AdminUsersQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsIn(PAGE_SIZES)
+  pageSize: PageSize = 20;
+}
+
+export class UpdateUserRolesDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsIn(USER_ROLES, { each: true })
+  roles!: UserRole[];
 }
 
 export class UpdateProfileDto {

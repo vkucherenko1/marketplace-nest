@@ -1,18 +1,38 @@
 import type { Category } from "@marketplace/contracts";
-import { Menu, ShoppingBag, Sparkles, UserRound, X } from "lucide-react";
+import {
+  Heart,
+  ChevronDown,
+  ChevronRight,
+  MapPin,
+  Menu,
+  Search,
+  ShoppingCart,
+  UserRound,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../features/auth/AuthProvider";
 import { useCart } from "../features/cart/CartProvider";
 import { IconButton } from "../shared/IconButton";
+import {
+  buildCategoryTree,
+  type CategoryTreeNode,
+} from "../features/catalog/categoryTree";
 
 export function Header() {
   const { session } = useAuth();
   const cart = useCart();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
-  const orderedCategories = flattenCategoryTree(categories);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const categoryTree = buildCategoryTree(categories);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -22,86 +42,137 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-ink/10 bg-cream/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1500px] items-center gap-3 px-5 py-4 lg:px-10">
+      <header className="sticky top-0 z-30 border-b border-ink/8 bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto max-w-[1500px] px-4 py-3 lg:px-8">
+          <div className="flex items-center gap-2 text-xs text-ink/55">
+            <MapPin size={14} className="text-lime" />
+            <span>Кишинёв</span>
+            <span className="ml-auto hidden sm:inline">
+              Доставка от 1 дня · безопасная оплата
+            </span>
+          </div>
+
+          {/* Каталог и поиск объединены в главную рабочую строку шапки. */}
+          <div className="mt-3 flex items-center gap-3">
+            <Link
+              className="shrink-0 text-2xl font-extrabold tracking-[-.06em] text-lime"
+              to="/"
+            >
+              MARKET<span className="text-coral">.</span>
+            </Link>
+            <button
+              className="hidden cursor-pointer items-center gap-2 rounded-xl bg-lime px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95 sm:flex"
+              onClick={() => setIsCatalogOpen(true)}
+            >
+              <Menu size={18} /> Каталог
+            </button>
+            <form
+              className="flex min-w-0 flex-1 rounded-xl border-2 border-lime bg-white p-0.5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const query = search.trim();
+                navigate(
+                  query
+                    ? `/catalog?search=${encodeURIComponent(query)}`
+                    : "/catalog",
+                );
+              }}
+            >
+              <input
+                className="min-w-0 flex-1 rounded-l-lg bg-transparent px-4 text-sm outline-none"
+                placeholder="Искать товары и категории"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <button
+                className="grid h-10 w-12 place-items-center rounded-lg bg-lime text-white"
+                aria-label="Найти"
+              >
+                <Search size={20} />
+              </button>
+            </form>
+            <Link className="header-action hidden md:flex" to="/catalog">
+              <Heart size={21} />
+              <span className="hidden lg:inline">Избранное</span>
+            </Link>
+            <Link
+              className="header-action"
+              to={session ? "/account" : "/login"}
+            >
+              {session?.user.avatarUrl ? (
+                <img
+                  className="h-6 w-6 rounded-full object-cover"
+                  src={session.user.avatarUrl}
+                  alt=""
+                />
+              ) : (
+                <UserRound size={21} />
+              )}
+              <span className="hidden max-w-24 truncate lg:inline">
+                {session?.user.displayName ?? "Войти"}
+              </span>
+            </Link>
+            <Link
+              className="header-action relative"
+              aria-label="Корзина"
+              to="/cart"
+            >
+              <ShoppingCart size={21} />
+              <span className="hidden lg:inline">Корзина</span>
+              {cart.count > 0 && (
+                <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-coral px-1 text-[10px] font-bold text-white">
+                  {cart.count}
+                </span>
+              )}
+            </Link>
+          </div>
           <button
-            className="flex cursor-pointer items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-white"
+            className="mt-3 flex items-center gap-2 text-sm font-semibold text-lime sm:hidden"
             onClick={() => setIsCatalogOpen(true)}
           >
-            <Menu size={18} /> Каталог
+            <Menu size={17} /> Открыть каталог
           </button>
-          <Link className="mr-auto flex items-center gap-3" to="/">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-ink text-lime">
-              <Sparkles size={19} />
-            </span>
-            <span>
-              <strong className="block text-lg leading-none">market pulse</strong>
-              <small className="text-xs text-ink/55">выбрано с вниманием</small>
-            </span>
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium lg:flex">
-            <NavLink to="/catalog">Все товары</NavLink>
-          </nav>
-          <Link
-            className="flex items-center gap-2 rounded-full border border-ink/15 px-3 py-2 text-sm font-semibold"
-            to={session ? "/account" : "/login"}
-          >
-            {session?.user.avatarUrl ? (
-              <img
-                className="h-6 w-6 rounded-full object-cover"
-                src={session.user.avatarUrl}
-                alt=""
-              />
-            ) : (
-              <UserRound size={18} />
-            )}
-            <span className="hidden max-w-36 truncate sm:inline">
-              {session?.user.displayName ?? "Войти"}
-            </span>
-          </Link>
-          <Link
-            className="relative grid h-10 w-10 place-items-center rounded-full border border-ink/15 transition hover:bg-ink hover:text-white"
-            aria-label="Корзина"
-            to="/cart"
-          >
-            <ShoppingBag size={19} />
-            {cart.count > 0 && (
-              <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-coral px-1 text-[10px] font-bold text-white">
-                {cart.count}
-              </span>
-            )}
-          </Link>
         </div>
       </header>
 
       {isCatalogOpen && (
         <aside className="fixed inset-0 z-50 bg-ink/45 backdrop-blur-sm">
-          <div className="h-full w-full max-w-md overflow-y-auto bg-cream p-6 shadow-2xl">
+          <div className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-semibold">Каталог</h2>
-              <IconButton aria-label="Закрыть каталог" onClick={() => setIsCatalogOpen(false)}>
+              <h2 className="text-3xl font-bold">Каталог</h2>
+              <IconButton
+                aria-label="Закрыть каталог"
+                onClick={() => setIsCatalogOpen(false)}
+              >
                 <X size={19} />
               </IconButton>
             </div>
-            <nav className="mt-8 grid gap-3">
+            <nav className="mt-8 grid gap-1">
               <Link
-                className="rounded-2xl bg-ink p-5 text-xl font-semibold text-white"
+                className="rounded-xl bg-lime p-4 text-lg font-semibold text-white"
                 to="/catalog"
                 onClick={() => setIsCatalogOpen(false)}
               >
                 Все товары
               </Link>
-              {orderedCategories.map((category) => (
-                <Link
+              {categoryTree.map((category) => (
+                <CategoryTreeItem
                   key={category.id}
-                  className="flex items-center justify-between rounded-2xl bg-white p-5 text-lg font-semibold"
-                  style={{ marginLeft: Math.min(category.depth - 1, 4) * 14 }}
-                  to={`/category/${category.slug}`}
-                  onClick={() => setIsCatalogOpen(false)}
-                >
-                  {category.name}
-                  <span className="text-sm text-ink/40">{category.productCount}</span>
-                </Link>
+                  category={category}
+                  expanded={expandedCategories}
+                  onToggle={(id) =>
+                    setExpandedCategories((current) => {
+                      const next = new Set(current);
+                      if (next.has(id)) {
+                        next.delete(id);
+                      } else {
+                        next.add(id);
+                      }
+                      return next;
+                    })
+                  }
+                  onNavigate={() => setIsCatalogOpen(false)}
+                />
               ))}
             </nav>
           </div>
@@ -111,23 +182,62 @@ export function Header() {
   );
 }
 
-function flattenCategoryTree(categories: Category[]): Category[] {
-  const children = new Map<string | null, Category[]>();
-  categories.forEach((category) => {
-    const group = children.get(category.parentId) ?? [];
-    group.push(category);
-    children.set(category.parentId, group);
-  });
-  children.forEach((group) =>
-    group.sort((left, right) => left.name.localeCompare(right.name, "ru")),
+function CategoryTreeItem(props: {
+  category: CategoryTreeNode;
+  expanded: Set<string>;
+  onToggle: (id: string) => void;
+  onNavigate: () => void;
+}) {
+  const hasChildren = props.category.children.length > 0;
+  const isExpanded = props.expanded.has(props.category.id);
+
+  return (
+    <div>
+      <div
+        className="flex items-center rounded-xl transition hover:bg-cream"
+        style={{ marginLeft: Math.min(props.category.depth - 1, 4) * 14 }}
+      >
+        {hasChildren ? (
+          <button
+            type="button"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-ink/45 hover:text-lime"
+            aria-label={`${isExpanded ? "Свернуть" : "Раскрыть"} ${props.category.name}`}
+            aria-expanded={isExpanded}
+            onClick={() => props.onToggle(props.category.id)}
+          >
+            {isExpanded ? (
+              <ChevronDown size={18} />
+            ) : (
+              <ChevronRight size={18} />
+            )}
+          </button>
+        ) : (
+          <span className="w-10 shrink-0" />
+        )}
+        <Link
+          className="flex min-w-0 flex-1 items-center justify-between py-3 pr-4 text-base font-semibold hover:text-lime"
+          to={`/category/${props.category.slug}`}
+          onClick={props.onNavigate}
+        >
+          <span className="truncate">{props.category.name}</span>
+          <span className="ml-3 text-xs font-normal text-ink/40">
+            {props.category.productCount}
+          </span>
+        </Link>
+      </div>
+      {hasChildren && isExpanded && (
+        <div>
+          {props.category.children.map((child) => (
+            <CategoryTreeItem
+              key={child.id}
+              category={child}
+              expanded={props.expanded}
+              onToggle={props.onToggle}
+              onNavigate={props.onNavigate}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
-  const result: Category[] = [];
-  function visit(parentId: string | null): void {
-    for (const category of children.get(parentId) ?? []) {
-      result.push(category);
-      visit(category.id);
-    }
-  }
-  visit(null);
-  return result;
 }

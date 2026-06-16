@@ -18,7 +18,7 @@ export function LoginPage() {
   return (
     <section className="mx-auto grid min-h-[70vh] max-w-[1500px] place-items-center px-5 py-12 lg:px-10">
       <form
-        className="w-full max-w-lg rounded-[2rem] bg-white p-8 shadow-card lg:p-12"
+        className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-card lg:p-12"
         onSubmit={(event) => {
           event.preventDefault();
           setLoading(true);
@@ -36,11 +36,11 @@ export function LoginPage() {
         }}
       >
         <p className="eyebrow">Авторизация</p>
-        <h1 className="mt-2 text-4xl font-semibold">Войти в аккаунт</h1>
+        <h1 className="mt-2 text-4xl font-bold">Войти в аккаунт</h1>
         <label className="mt-8 block text-sm font-medium">
           Email
           <input
-            className="mt-2 w-full rounded-xl border border-ink/15 px-4 py-3"
+            className="mt-2 w-full rounded-xl border border-ink/15 bg-cream/50 px-4 py-3"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
@@ -49,14 +49,14 @@ export function LoginPage() {
           Пароль
           <input
             type="password"
-            className="mt-2 w-full rounded-xl border border-ink/15 px-4 py-3"
+            className="mt-2 w-full rounded-xl border border-ink/15 bg-cream/50 px-4 py-3"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
         {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
         <button
-          className="mt-7 w-full rounded-full bg-ink py-4 font-bold text-white"
+          className="mt-7 w-full rounded-xl bg-lime py-4 font-bold text-white"
           disabled={loading}
         >
           {loading ? "Входим..." : "Войти"}

@@ -13,11 +13,16 @@ import {
 import type {
   Category,
   LoginResponse,
+  ManagedUser,
   PaginatedResponse,
   ProductCard,
   ProductDetail,
+  ProductReviewsResponse,
+  PlatformOverview,
+  SellerProduct,
   SaveCategory,
   UserProfile,
+  UserRole,
 } from "@marketplace/contracts";
 import { ServiceProxy } from "./service-proxy.service";
 
@@ -36,6 +41,7 @@ export class GatewayController {
   }
 
   @Post("auth/login")
+  @HttpCode(200)
   login(@Body() body: unknown): Promise<LoginResponse> {
     return this.proxy.request(this.authUrl, "auth/login", {
       method: "POST",
@@ -44,6 +50,7 @@ export class GatewayController {
   }
 
   @Post("auth/refresh")
+  @HttpCode(200)
   refresh(@Body() body: unknown): Promise<LoginResponse> {
     return this.proxy.request(this.authUrl, "auth/refresh", {
       method: "POST",
@@ -75,6 +82,31 @@ export class GatewayController {
     @Body() body: unknown,
   ): Promise<UserProfile> {
     return this.proxy.request(this.authUrl, "auth/profile", {
+      method: "PATCH",
+      body,
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Get("admin/users")
+  adminUsers(
+    @Headers("authorization") authorization: string | undefined,
+    @Query("page") page = "1",
+    @Query("pageSize") pageSize = "20",
+  ): Promise<PaginatedResponse<ManagedUser>> {
+    const params = new URLSearchParams({ page, pageSize });
+    return this.proxy.request(this.authUrl, `admin/users?${params}`, {
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Patch("admin/users/:id/roles")
+  updateUserRoles(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("id") id: string,
+    @Body() body: { roles: UserRole[] },
+  ): Promise<ManagedUser> {
+    return this.proxy.request(this.authUrl, `admin/users/${id}/roles`, {
       method: "PATCH",
       body,
       ...(authorization ? { authorization } : {}),
@@ -145,6 +177,18 @@ export class GatewayController {
     return this.proxy.request(this.catalogUrl, `products/${slug}`);
   }
 
+  @Get("products/:slug/reviews")
+  productReviews(
+    @Param("slug") slug: string,
+    @Query() query: Record<string, string>,
+  ): Promise<ProductReviewsResponse> {
+    const params = new URLSearchParams(query);
+    return this.proxy.request(
+      this.catalogUrl,
+      `products/${slug}/reviews?${params.toString()}`,
+    );
+  }
+
   @Post("seller/products")
   createProduct(
     @Headers("authorization") authorization: string | undefined,
@@ -153,6 +197,27 @@ export class GatewayController {
     return this.proxy.request(this.catalogUrl, "seller/products", {
       method: "POST",
       body,
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Get("seller/products")
+  sellerProducts(
+    @Headers("authorization") authorization: string | undefined,
+    @Query("page") page = "1",
+    @Query("pageSize") pageSize = "20",
+  ): Promise<PaginatedResponse<SellerProduct>> {
+    const params = new URLSearchParams({ page, pageSize });
+    return this.proxy.request(this.catalogUrl, `seller/products?${params}`, {
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Get("moderation/overview")
+  overview(
+    @Headers("authorization") authorization: string | undefined,
+  ): Promise<PlatformOverview> {
+    return this.proxy.request(this.catalogUrl, "moderation/overview", {
       ...(authorization ? { authorization } : {}),
     });
   }

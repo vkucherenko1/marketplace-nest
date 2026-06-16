@@ -150,9 +150,9 @@ export function DatePicker(props: {
                       type="button"
                       className={`grid aspect-square place-items-center rounded-xl text-sm font-semibold transition ${
                         isSelected
-                          ? "bg-ink text-white"
+                          ? "bg-lime text-white"
                           : isToday
-                            ? "bg-lime text-ink"
+                            ? "bg-lime/10 text-lime"
                             : isCurrentMonth
                               ? "hover:bg-cream"
                               : "text-ink/25 hover:bg-cream"
@@ -183,7 +183,7 @@ export function DatePicker(props: {
             </button>
             <button
               type="button"
-              className="rounded-full bg-lime px-4 py-2 text-xs font-bold"
+              className="rounded-xl bg-lime px-4 py-2 text-xs font-bold text-white"
               onClick={() => {
                 props.onChange(formatDate(today));
                 setVisibleMonth(
@@ -231,8 +231,8 @@ function YearGrid(props: {
           type="button"
           className={`rounded-xl px-3 py-3 text-sm font-semibold ${
             year === props.currentYear
-              ? "bg-ink text-white"
-              : "bg-cream hover:bg-lime"
+              ? "bg-lime text-white"
+              : "bg-cream hover:bg-lime/10 hover:text-lime"
           }`}
           onClick={() => props.onSelect(year)}
         >

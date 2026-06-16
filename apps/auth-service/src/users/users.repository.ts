@@ -1,6 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import type {
+  ManagedUser,
+  PageSize,
+  PaginatedResponse,
   UpdateUserProfile,
   UserProfile,
   UserRole,
@@ -42,6 +45,48 @@ export class UsersRepository {
 
   async findById(id: string): Promise<UserRecord | null> {
     return this.users.findOneBy({ id });
+  }
+
+  async list(
+    page: number,
+    pageSize: PageSize,
+  ): Promise<PaginatedResponse<ManagedUser>> {
+    const [users, total] = await this.users.findAndCount({
+      order: { createdAt: "ASC" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+    return {
+      items: users.map((user) => ({
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        roles: user.roles,
+        avatarUrl: user.avatarUrl,
+        sellerId: user.sellerId,
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async updateRoles(id: string, roles: UserRole[]): Promise<ManagedUser | null> {
+    const user = await this.users.findOneBy({ id });
+    if (!user) {
+      return null;
+    }
+    user.roles = roles;
+    const saved = await this.users.save(user);
+    return {
+      id: saved.id,
+      email: saved.email,
+      displayName: saved.displayName,
+      roles: saved.roles,
+      avatarUrl: saved.avatarUrl,
+      sellerId: saved.sellerId,
+    };
   }
 
   async createSession(input: {

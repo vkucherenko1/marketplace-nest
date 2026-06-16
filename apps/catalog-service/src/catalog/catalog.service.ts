@@ -10,11 +10,20 @@ import type {
   PaginatedResponse,
   ProductCard,
   ProductDetail,
+  ProductReviewsResponse,
+  PlatformOverview,
+  SellerProduct,
   SaveCategory,
 } from "@marketplace/contracts";
 import type { AuthenticatedRequest } from "../common/access-token.guard";
 import { CatalogRepository } from "./catalog.repository";
-import { CreateProductDto, ProductListQueryDto, SaveCategoryDto } from "./dto";
+import {
+  CreateProductDto,
+  ProductListQueryDto,
+  ProductReviewsQueryDto,
+  SaveCategoryDto,
+  SellerProductsQueryDto,
+} from "./dto";
 
 @Injectable()
 export class CatalogService {
@@ -77,6 +86,17 @@ export class CatalogService {
     return product;
   }
 
+  async reviews(
+    slug: string,
+    query: ProductReviewsQueryDto,
+  ): Promise<ProductReviewsResponse> {
+    const reviews = await this.repository.listProductReviews(slug, query);
+    if (!reviews) {
+      throw new NotFoundException("Product not found");
+    }
+    return reviews;
+  }
+
   async create(
     user: AuthenticatedRequest["user"],
     input: CreateProductDto,
@@ -85,6 +105,24 @@ export class CatalogService {
     // Новый товар всегда создаётся скрытым. Продавец должен отдельно проверить
     // карточку и вручную опубликовать её через операцию восстановления/активации.
     return this.repository.createProduct(sellerId, input);
+  }
+
+  sellerProducts(
+    user: AuthenticatedRequest["user"],
+    query: SellerProductsQueryDto,
+  ): Promise<PaginatedResponse<SellerProduct>> {
+    return this.repository.listSellerProducts(
+      this.requireSeller(user),
+      query.page,
+      query.pageSize,
+    );
+  }
+
+  overview(
+    user: AuthenticatedRequest["user"],
+  ): Promise<PlatformOverview> {
+    this.requireModerator(user);
+    return this.repository.platformOverview();
   }
 
   async changeStatus(

@@ -20,6 +20,10 @@ export interface UserSummary {
   avatarUrl: string | null;
 }
 
+export interface ManagedUser extends UserSummary {
+  sellerId: string | null;
+}
+
 export interface UserProfile extends UserSummary {
   firstName: string;
   lastName: string;
@@ -114,6 +118,17 @@ export interface ProductDetail extends ProductCard {
   reviews: ProductReview[];
 }
 
+export const REVIEW_SORTS = ["newest", "oldest"] as const;
+export type ReviewSort = (typeof REVIEW_SORTS)[number];
+
+export interface ProductReviewsResponse {
+  items: ProductReview[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface CartItem {
   key: string;
   product: ProductCard;
@@ -131,8 +146,39 @@ export interface PaginatedResponse<T> {
 
 export interface ProductListQuery {
   category?: string;
+  sellerId?: string;
   search?: string;
   sort?: ProductSort;
   page?: number;
   pageSize?: PageSize;
+}
+
+export interface CreateProductInput {
+  name: string;
+  description: string;
+  categoryId: string;
+  priceMinor: number;
+  imageUrl: string;
+  stock: number;
+}
+
+export interface SellerProduct {
+  id: string;
+  slug: string;
+  name: string;
+  category: Pick<Category, "id" | "slug" | "name">;
+  priceMinor: number;
+  stock: number;
+  status: "ACTIVE" | "HIDDEN" | "DELETED";
+  rating: number;
+  reviewCount: number;
+  imageUrl: string;
+}
+
+export interface PlatformOverview {
+  categories: number;
+  activeProducts: number;
+  hiddenProducts: number;
+  sellers: number;
+  reviews: number;
 }

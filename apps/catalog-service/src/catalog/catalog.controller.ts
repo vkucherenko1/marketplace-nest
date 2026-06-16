@@ -16,13 +16,22 @@ import type {
   PaginatedResponse,
   ProductCard,
   ProductDetail,
+  ProductReviewsResponse,
+  PlatformOverview,
+  SellerProduct,
 } from "@marketplace/contracts";
 import {
   AccessTokenGuard,
   type AuthenticatedRequest,
 } from "../common/access-token.guard";
 import { CatalogService } from "./catalog.service";
-import { CreateProductDto, ProductListQueryDto, SaveCategoryDto } from "./dto";
+import {
+  CreateProductDto,
+  ProductListQueryDto,
+  ProductReviewsQueryDto,
+  SaveCategoryDto,
+  SellerProductsQueryDto,
+} from "./dto";
 
 @Controller()
 export class CatalogController {
@@ -79,6 +88,14 @@ export class CatalogController {
     return this.catalog.product(slug);
   }
 
+  @Get("products/:slug/reviews")
+  reviews(
+    @Param("slug") slug: string,
+    @Query() query: ProductReviewsQueryDto,
+  ): Promise<ProductReviewsResponse> {
+    return this.catalog.reviews(slug, query);
+  }
+
   @Post("seller/products")
   @UseGuards(AccessTokenGuard)
   create(
@@ -86,6 +103,23 @@ export class CatalogController {
     @Body() input: CreateProductDto,
   ): Promise<{ id: string; slug: string }> {
     return this.catalog.create(request.user, input);
+  }
+
+  @Get("seller/products")
+  @UseGuards(AccessTokenGuard)
+  sellerProducts(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: SellerProductsQueryDto,
+  ): Promise<PaginatedResponse<SellerProduct>> {
+    return this.catalog.sellerProducts(request.user, query);
+  }
+
+  @Get("moderation/overview")
+  @UseGuards(AccessTokenGuard)
+  overview(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<PlatformOverview> {
+    return this.catalog.overview(request.user);
   }
 
   @Patch("seller/products/:id/hide")

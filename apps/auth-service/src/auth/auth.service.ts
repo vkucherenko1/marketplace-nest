@@ -1,9 +1,19 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import type {
+  ManagedUser,
+  PageSize,
+  PaginatedResponse,
   LoginResponse,
   UpdateUserProfile,
   UserProfile,
+  UserRole,
   UserSummary,
 } from "@marketplace/contracts";
 import { verify } from "@node-rs/argon2";
@@ -85,6 +95,39 @@ export class AuthService {
     return this.toProfile(user);
   }
 
+  async adminUsers(
+    actor: { sub: string; roles: UserRole[] },
+    page: number,
+    pageSize: PageSize,
+  ): Promise<PaginatedResponse<ManagedUser>> {
+    this.requireAdmin(actor.roles);
+    return this.users.list(page, pageSize);
+  }
+
+  async updateUserRoles(
+    actor: { sub: string; roles: UserRole[] },
+    userId: string,
+    roles: UserRole[],
+  ): Promise<ManagedUser> {
+    this.requireAdmin(actor.roles);
+    const user = await this.users.findById(userId);
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+    // Администратор не может случайно лишить себя доступа к панели.
+    if (actor.sub === userId && !roles.includes("ADMIN")) {
+      throw new BadRequestException("Administrator cannot remove own ADMIN role");
+    }
+    if (roles.includes("SELLER") && !user.sellerId) {
+      throw new BadRequestException("Seller profile is required for SELLER role");
+    }
+    const updated = await this.users.updateRoles(userId, roles);
+    if (!updated) {
+      throw new NotFoundException("User not found");
+    }
+    return updated;
+  }
+
   private async issueSession(user: UserRecord): Promise<LoginResponse> {
     // В БД хранится только хеш refresh-токена: утечка таблицы сессий
     // не даст злоумышленнику готовые токены для входа.
@@ -155,6 +198,12 @@ export class AuthService {
 
   private digest(token: string): string {
     return createHash("sha256").update(token).digest("hex");
+  }
+
+  private requireAdmin(roles: UserRole[]): void {
+    if (!roles.includes("ADMIN")) {
+      throw new ForbiddenException("Administrator role required");
+    }
   }
 
   private toProfile(user: UserRecord): UserProfile {

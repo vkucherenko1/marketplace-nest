@@ -5,10 +5,16 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
+import type { UserRole } from "@marketplace/contracts";
 import type { Request } from "express";
 
 export interface AuthRequest extends Request {
-  user: { sub: string; type: "access" };
+  user: {
+    sub: string;
+    roles: UserRole[];
+    sellerId: string | null;
+    type: "access";
+  };
 }
 
 @Injectable()

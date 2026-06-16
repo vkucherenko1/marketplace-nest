@@ -1,21 +1,21 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @theme {
-  /* Семантические токены дают компонентам единый язык и позволяют
-     менять визуальную тему без массовой правки JSX-классов. */
-  --color-ink: oklch(23% 0.025 150);
-  --color-cream: oklch(96.5% 0.012 91);
-  --color-lime: oklch(92% 0.2 118);
-  --color-coral: oklch(70% 0.18 36);
+  /* Палитра вдохновлена современными крупными маркетплейсами:
+     чистая витрина, насыщенный синий CTA и фиолетовый акцент. */
+  --color-ink: oklch(22% 0.035 264);
+  --color-cream: oklch(97.2% 0.006 264);
+  --color-lime: oklch(57% 0.235 264);
+  --color-coral: oklch(55% 0.27 303);
   --color-surface: oklch(100% 0 0);
-  --color-muted: oklch(55% 0.025 150);
-  --color-border: oklch(86% 0.018 150);
+  --color-muted: oklch(55% 0.025 264);
+  --color-border: oklch(90% 0.012 264);
   --color-danger: oklch(58% 0.22 28);
-  --font-sans: "Manrope", sans-serif;
-  --shadow-card: 0 18px 50px color-mix(in oklch, var(--color-ink) 10%, transparent);
-  --radius-card: 1.5rem;
-  --radius-panel: 2rem;
+  --font-sans: "Inter", sans-serif;
+  --shadow-card: 0 4px 18px color-mix(in oklch, var(--color-ink) 8%, transparent);
+  --radius-card: 1rem;
+  --radius-panel: 1.5rem;
 }
 
 @layer base {
@@ -46,21 +46,33 @@
   }
 
   :focus-visible {
-    outline: 3px solid var(--color-lime);
+    outline: 3px solid color-mix(in oklch, var(--color-lime) 55%, white);
     outline-offset: 3px;
   }
 }
 
 @layer components {
   .icon-button {
-    @apply grid h-10 w-10 place-items-center rounded-full border border-ink/15 transition hover:bg-ink hover:text-white;
+    @apply grid h-10 w-10 place-items-center rounded-xl text-ink/65 transition hover:bg-ink/5 hover:text-lime;
   }
 
   .eyebrow {
-    @apply text-xs font-bold uppercase tracking-[.2em] text-ink/45;
+    @apply text-xs font-bold uppercase tracking-[.14em] text-lime;
   }
 
   .section-title {
-    @apply mt-2 text-4xl font-semibold tracking-[-.04em] sm:text-5xl;
+    @apply mt-2 text-3xl font-bold tracking-[-.035em] sm:text-4xl;
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-lime px-5 py-3 font-semibold text-white transition hover:brightness-95 active:scale-[.98];
+  }
+
+  .surface-panel {
+    @apply rounded-3xl bg-white shadow-card;
+  }
+
+  .header-action {
+    @apply flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 text-xs font-medium text-ink/70 transition hover:bg-cream hover:text-lime;
   }
 }

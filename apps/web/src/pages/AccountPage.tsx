@@ -8,6 +8,9 @@ import { Navigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../features/auth/AuthProvider";
 import { CategoryManager } from "../features/moderation/CategoryManager";
+import { RoleDashboard } from "../features/account/RoleDashboard";
+import { AdminUserManager } from "../features/account/AdminUserManager";
+import { SellerDashboard } from "../features/seller/SellerDashboard";
 import { DatePicker } from "../shared/DatePicker";
 import { SelectField } from "../shared/SelectField";
 
@@ -57,36 +60,36 @@ export function AccountPage() {
   }
 
   return (
-    <section className="mx-auto max-w-[1500px] px-5 py-10 lg:px-10 lg:py-16">
+    <section className="mx-auto max-w-[1500px] px-4 py-8 lg:px-8">
       <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
-        <aside className="h-fit rounded-[2rem] bg-ink p-7 text-white">
+        <aside className="h-fit rounded-3xl bg-white p-7 shadow-card">
           {profile.avatarUrl ? (
             <img
-              className="h-32 w-32 rounded-full object-cover ring-4 ring-lime"
+              className="h-32 w-32 rounded-full object-cover ring-4 ring-lime/15"
               src={profile.avatarUrl}
               alt="Аватар пользователя"
             />
           ) : (
-            <div className="grid h-32 w-32 place-items-center rounded-full bg-white/10 text-lime">
+            <div className="grid h-32 w-32 place-items-center rounded-full bg-lime/10 text-lime">
               <UserRound size={48} />
             </div>
           )}
           <h1 className="mt-6 text-3xl font-semibold">
             {profile.firstName} {profile.lastName}
           </h1>
-          <p className="mt-2 text-sm text-white/55">{email}</p>
+          <p className="mt-2 text-sm text-ink/55">{email}</p>
           <div className="mt-5 flex flex-wrap gap-2">
             {roles.map((role) => (
               <span
                 key={role}
-                className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                className="rounded-full bg-lime/10 px-3 py-1 text-xs text-lime"
               >
                 {role}
               </span>
             ))}
           </div>
           <button
-            className="mt-8 flex items-center gap-2 text-sm font-semibold text-white/75 hover:text-white"
+            className="mt-8 flex items-center gap-2 text-sm font-semibold text-ink/55 hover:text-lime"
             onClick={logout}
           >
             <LogOut size={17} /> Выйти из аккаунта
@@ -94,7 +97,7 @@ export function AccountPage() {
         </aside>
 
         <form
-          className="rounded-[2rem] bg-white p-7 shadow-card lg:p-10"
+          className="rounded-3xl bg-white p-7 shadow-card lg:p-10"
           onSubmit={(event) => {
             event.preventDefault();
             setSaving(true);
@@ -217,7 +220,7 @@ export function AccountPage() {
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <button
-              className="flex items-center gap-2 rounded-full bg-ink px-6 py-3.5 font-bold text-white"
+              className="flex items-center gap-2 rounded-xl bg-lime px-6 py-3.5 font-bold text-white"
               disabled={saving}
             >
               <Save size={18} />
@@ -227,8 +230,24 @@ export function AccountPage() {
           </div>
         </form>
       </div>
+      {roles.map((role) => (
+        <RoleDashboard
+          key={role}
+          role={role}
+          accessToken={session.accessToken}
+        />
+      ))}
+      {roles.includes("SELLER") && (
+        <SellerDashboard accessToken={session.accessToken} />
+      )}
       {roles.some((role) => role === "MODERATOR" || role === "ADMIN") && (
         <CategoryManager accessToken={session.accessToken} />
+      )}
+      {roles.includes("ADMIN") && (
+        <AdminUserManager
+          accessToken={session.accessToken}
+          currentUserId={session.user.id}
+        />
       )}
     </section>
   );

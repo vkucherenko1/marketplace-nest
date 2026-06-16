@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -b && vite build",
     "dev": "vite --host 0.0.0.0",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {

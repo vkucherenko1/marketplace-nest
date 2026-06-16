@@ -56,7 +56,7 @@ export function SelectField<T extends string | number>(props: {
                 aria-selected={isSelected}
                 className={`flex w-full items-center justify-between gap-5 rounded-xl px-3 py-3 text-left text-sm transition ${
                   isSelected
-                    ? "bg-ink font-semibold text-white"
+                    ? "bg-lime font-semibold text-white"
                     : "hover:bg-cream"
                 }`}
                 onClick={() => {

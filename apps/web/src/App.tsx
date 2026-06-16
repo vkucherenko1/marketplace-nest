@@ -6,6 +6,7 @@ import { CartPage } from "./pages/CartPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProductPage } from "./pages/ProductPage";
+import { SellerPage } from "./pages/SellerPage";
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
         <Route path="cart" element={<CartPage />} />
         <Route path="category/:slug" element={<CatalogPage />} />
         <Route path="product/:slug" element={<ProductPage />} />
+        <Route path="seller/:sellerId" element={<SellerPage />} />
         <Route
           path="product/:slug/variant/:variantSlug"
           element={<ProductPage />}

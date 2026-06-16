@@ -1,5 +1,6 @@
 export const money = new Intl.NumberFormat("ru-RU", {
   style: "currency",
   currency: "USD",
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });

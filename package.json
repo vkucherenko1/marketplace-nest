@@ -12,6 +12,8 @@
     "dev": "npm run dev --workspaces --if-present",
     "pretest": "npm run build -w @marketplace/contracts",
     "test": "npm run test --workspaces --if-present",
+    "test:integration": "node --test tests/api-regression.test.cjs",
+    "test:regression": "npm test && npm run typecheck && npm run build && npm run test:integration",
     "pretypecheck": "npm run build -w @marketplace/contracts",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },

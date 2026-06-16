@@ -25,11 +25,13 @@ const emptyPage: PaginatedResponse<ProductCard> = {
   totalPages: 0,
 };
 
-export function useCatalog(initialCategory = "") {
+export function useCatalog(initialCategory = "", sellerId?: string) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState(emptyPage);
-  const [category, setCategoryState] = useState(initialCategory);
+  const [category, setCategoryState] = useState(
+    sellerId ? (searchParams.get("category") ?? "") : initialCategory,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const search = searchParams.get("search") ?? "";
@@ -51,8 +53,10 @@ export function useCatalog(initialCategory = "") {
   }, []);
 
   useEffect(() => {
-    setCategoryState(initialCategory);
-  }, [initialCategory]);
+    setCategoryState(
+      sellerId ? (searchParams.get("category") ?? "") : initialCategory,
+    );
+  }, [initialCategory, searchParams, sellerId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -64,6 +68,7 @@ export function useCatalog(initialCategory = "") {
       .products(
         {
           ...(category ? { category } : {}),
+          ...(sellerId ? { sellerId } : {}),
           ...(search ? { search } : {}),
           sort,
           page,
@@ -83,7 +88,7 @@ export function useCatalog(initialCategory = "") {
         }
       });
     return () => controller.abort();
-  }, [category, page, pageSize, search, sort]);
+  }, [category, page, pageSize, search, sellerId, sort]);
 
   return {
     categories,
@@ -97,7 +102,10 @@ export function useCatalog(initialCategory = "") {
     error,
     setCategory(value: string) {
       setCategoryState(value);
-      updateSearchParams({ page: 1 });
+      updateSearchParams({
+        ...(sellerId ? { category: value } : {}),
+        page: 1,
+      });
     },
     setSearch(value: string) {
       updateSearchParams({ search: value, page: 1 });
@@ -119,6 +127,7 @@ export function useCatalog(initialCategory = "") {
       sort: ProductSort;
       page: number;
       pageSize: PageSize;
+      category: string;
     }>,
   ): void {
     // URL хранит состояние выдачи: ссылку можно открыть напрямую,

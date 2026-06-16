@@ -1,6 +1,7 @@
 import type { CartItem, ProductCard, ProductVariant } from "@marketplace/contracts";
 
-const CART_KEY = "marketplace-cart-v2";
+const LEGACY_CART_KEY = "marketplace-cart-v2";
+const CART_KEY_PREFIX = "marketplace-cart-v3";
 const RECENT_KEY = "marketplace-recent";
 
 function read<T>(key: string, fallback: T): T {
@@ -12,12 +13,32 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-export function readCart(): CartItem[] {
-  return read(CART_KEY, []);
+export function cartStorageKey(ownerId: string | null): string {
+  return `${CART_KEY_PREFIX}:${ownerId ?? "guest"}`;
 }
 
-export function writeCart(items: CartItem[]): void {
-  localStorage.setItem(CART_KEY, JSON.stringify(items));
+export function readCart(ownerId: string | null): CartItem[] {
+  const key = cartStorageKey(ownerId);
+  const stored = read<CartItem[] | null>(key, null);
+  if (stored) {
+    return stored;
+  }
+  if (ownerId === null) {
+    const legacy = read<CartItem[]>(LEGACY_CART_KEY, []);
+    if (legacy.length > 0) {
+      localStorage.setItem(key, JSON.stringify(legacy));
+      localStorage.removeItem(LEGACY_CART_KEY);
+    }
+    return legacy;
+  }
+  return [];
+}
+
+export function writeCart(
+  ownerId: string | null,
+  items: CartItem[],
+): void {
+  localStorage.setItem(cartStorageKey(ownerId), JSON.stringify(items));
 }
 
 export function cartKey(
