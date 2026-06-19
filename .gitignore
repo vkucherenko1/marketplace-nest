@@ -8,3 +8,4 @@ docs/REQUIREMENTS.md
 coverage/
 *.log
 .vite/
+.serena/
