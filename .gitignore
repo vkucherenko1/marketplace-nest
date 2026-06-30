@@ -9,3 +9,4 @@ coverage/
 *.log
 .vite/
 .serena/
+*.tsbuildinfo

@@ -23,6 +23,7 @@ const numericTransformer = {
 
 @Entity({ name: "products" })
 @Index("products_listing_idx", ["categoryId", "status", "rating", "priceMinor"])
+@Index("products_sales_idx", ["categoryId", "status", "salesCount"])
 @Index("products_seller_idx", ["sellerId", "status"])
 export class ProductEntity {
   @PrimaryColumn()
@@ -70,6 +71,9 @@ export class ProductEntity {
 
   @Column({ name: "review_count" })
   reviewCount!: number;
+
+  @Column({ name: "sales_count", default: 0 })
+  salesCount!: number;
 
   @Column({ name: "image_url" })
   imageUrl!: string;

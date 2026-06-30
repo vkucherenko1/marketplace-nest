@@ -8,6 +8,7 @@ import { Eye, EyeOff, Plus, Store, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
+import { readImageFiles, type UploadedImage } from "../../shared/fileUpload";
 import { money } from "../../shared/format";
 import { SelectField } from "../../shared/SelectField";
 import { Pagination } from "../catalog/Pagination";
@@ -29,6 +30,7 @@ export function SellerDashboard({ accessToken }: { accessToken: string }) {
   const [totalPages, setTotalPages] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState(emptyProduct);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [price, setPrice] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -184,6 +186,7 @@ export function SellerDashboard({ accessToken }: { accessToken: string }) {
               })
               .then(() => {
                 setForm(emptyProduct);
+                setUploadedImages([]);
                 setPrice("");
                 setMessage("Товар создан со статусом HIDDEN");
                 load();
@@ -254,19 +257,30 @@ export function SellerDashboard({ accessToken }: { accessToken: string }) {
               />
             </SellerField>
           </div>
-          <SellerField label="URL изображения">
-            <input
-              required
-              type="url"
-              value={form.imageUrl}
-              onChange={(event) =>
-                setForm({ ...form, imageUrl: event.target.value })
-              }
-            />
-          </SellerField>
+          <ProductImageDropzone
+            images={uploadedImages}
+            coverUrl={form.imageUrl}
+            onImages={(images) => {
+              const next = [...uploadedImages, ...images];
+              setUploadedImages(next);
+              setForm({ ...form, imageUrl: form.imageUrl || next[0]?.dataUrl || "" });
+            }}
+            onCoverChange={(imageUrl) => setForm({ ...form, imageUrl })}
+            onRemove={(imageId) => {
+              const next = uploadedImages.filter((image) => image.id !== imageId);
+              setUploadedImages(next);
+              setForm({
+                ...form,
+                imageUrl:
+                  form.imageUrl === uploadedImages.find((image) => image.id === imageId)?.dataUrl
+                    ? next[0]?.dataUrl ?? ""
+                    : form.imageUrl,
+              });
+            }}
+          />
           <button
             className="primary-button mt-6 w-full"
-            disabled={saving || !form.categoryId}
+            disabled={saving || !form.categoryId || !form.imageUrl}
           >
             <Plus size={18} />
             {saving ? "Создаём..." : "Создать товар"}
@@ -289,5 +303,88 @@ function SellerField(props: {
         {props.children}
       </span>
     </label>
+  );
+}
+
+function ProductImageDropzone(props: {
+  images: UploadedImage[];
+  coverUrl: string;
+  onImages: (images: UploadedImage[]) => void;
+  onCoverChange: (imageUrl: string) => void;
+  onRemove: (imageId: string) => void;
+}) {
+  async function handleFiles(files: FileList | File[]): Promise<void> {
+    const images = await readImageFiles(files);
+    if (images.length > 0) {
+      props.onImages(images);
+    }
+  }
+
+  return (
+    <div className="mt-4">
+      <span className="mb-2 block text-sm font-medium">Фото товара</span>
+      <label
+        className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-lime/40 bg-white p-5 text-center transition hover:border-lime hover:bg-lime/5"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          void handleFiles(event.dataTransfer.files);
+        }}
+      >
+        <input
+          className="sr-only"
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(event) => {
+            if (event.target.files) {
+              void handleFiles(event.target.files);
+            }
+          }}
+        />
+        <strong>Перетащите фото сюда</strong>
+        <span className="mt-1 text-sm text-ink/55">
+          или нажмите, чтобы выбрать несколько файлов
+        </span>
+      </label>
+
+      {props.images.length > 0 && (
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          {props.images.map((image) => {
+            const isCover = image.dataUrl === props.coverUrl;
+            return (
+              <div key={image.id} className="relative">
+                <button
+                  type="button"
+                  className={`block w-full overflow-hidden rounded-xl border-2 ${
+                    isCover ? "border-lime" : "border-transparent"
+                  }`}
+                  onClick={() => props.onCoverChange(image.dataUrl)}
+                >
+                  <img
+                    className="aspect-square w-full object-cover"
+                    src={image.dataUrl}
+                    alt={image.name}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="absolute right-1 top-1 rounded-full bg-white/90 px-2 py-0.5 text-xs font-bold text-red-700"
+                  aria-label={`Удалить фото ${image.name}`}
+                  onClick={() => props.onRemove(image.id)}
+                >
+                  ×
+                </button>
+                {isCover && (
+                  <span className="absolute bottom-1 left-1 rounded-full bg-lime px-2 py-0.5 text-[10px] font-bold text-white">
+                    Обложка
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

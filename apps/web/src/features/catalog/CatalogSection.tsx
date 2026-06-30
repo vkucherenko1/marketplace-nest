@@ -14,7 +14,7 @@ export function CatalogSection(props: {
   const cart = useCart();
 
   return (
-    <section id="catalog" className="mx-auto max-w-[1500px] px-4 py-8 lg:px-8">
+    <section id="catalog" className="mx-auto max-w-[1500px] px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
       <CatalogFilters
         categories={catalog.categories}
         category={catalog.category}
@@ -34,12 +34,12 @@ export function CatalogSection(props: {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {catalog.loading
           ? Array.from({ length: 8 }, (_, index) => (
               <div
                 key={index}
-                className="h-[390px] animate-pulse rounded-2xl bg-white/70"
+                className="h-[310px] animate-pulse rounded-2xl bg-white/70 sm:h-[390px]"
               />
             ))
           : catalog.products.items.map((product) => (

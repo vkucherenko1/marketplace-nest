@@ -6,6 +6,7 @@ export type PageSize = (typeof PAGE_SIZES)[number];
 
 export const PRODUCT_SORTS = [
   "relevance",
+  "sales",
   "price_asc",
   "price_desc",
   "rating",
@@ -64,6 +65,7 @@ export interface Category {
   parentId: string | null;
   depth: number;
   productCount: number;
+  salesCount: number;
 }
 
 export interface SaveCategory {
@@ -90,6 +92,7 @@ export interface ProductCard {
   currency: "USD";
   rating: number;
   reviewCount: number;
+  salesCount: number;
   imageUrl: string;
   inStock: boolean;
 }
@@ -172,6 +175,7 @@ export interface SellerProduct {
   status: "ACTIVE" | "HIDDEN" | "DELETED";
   rating: number;
   reviewCount: number;
+  salesCount: number;
   imageUrl: string;
 }
 

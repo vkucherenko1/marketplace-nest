@@ -3,6 +3,7 @@ import { AppLayout } from "./layout/AppLayout";
 import { AccountPage } from "./pages/AccountPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { CartPage } from "./pages/CartPage";
+import { FavoritesPage } from "./pages/FavoritesPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProductPage } from "./pages/ProductPage";
@@ -15,6 +16,7 @@ export function App() {
         <Route index element={<HomePage />} />
         <Route path="catalog" element={<CatalogPage />} />
         <Route path="cart" element={<CartPage />} />
+        <Route path="favorites" element={<FavoritesPage />} />
         <Route path="category/:slug" element={<CatalogPage />} />
         <Route path="product/:slug" element={<ProductPage />} />
         <Route path="seller/:sellerId" element={<SellerPage />} />

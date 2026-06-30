@@ -6,9 +6,9 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import type { UserRole } from "@marketplace/contracts";
-import type { Request } from "express";
+import type { FastifyRequest } from "fastify";
 
-export interface AuthRequest extends Request {
+export interface AuthRequest extends FastifyRequest {
   user: {
     sub: string;
     roles: UserRole[];

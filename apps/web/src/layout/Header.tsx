@@ -15,6 +15,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../features/auth/AuthProvider";
 import { useCart } from "../features/cart/CartProvider";
+import { useFavorites } from "../features/favorites/FavoritesProvider";
 import { IconButton } from "../shared/IconButton";
 import {
   buildCategoryTree,
@@ -24,6 +25,7 @@ import {
 export function Header() {
   const { session } = useAuth();
   const cart = useCart();
+  const favorites = useFavorites();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
@@ -43,8 +45,8 @@ export function Header() {
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-ink/8 bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto max-w-[1500px] px-4 py-3 lg:px-8">
-          <div className="flex items-center gap-2 text-xs text-ink/55">
+        <div className="mx-auto max-w-[1500px] px-3 py-2 sm:px-4 sm:py-3 lg:px-8">
+          <div className="hidden items-center gap-2 text-xs text-ink/55 sm:flex">
             <MapPin size={14} className="text-lime" />
             <span>Кишинёв</span>
             <span className="ml-auto hidden sm:inline">
@@ -53,9 +55,9 @@ export function Header() {
           </div>
 
           {/* Каталог и поиск объединены в главную рабочую строку шапки. */}
-          <div className="mt-3 flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:mt-3 sm:gap-3">
             <Link
-              className="shrink-0 text-2xl font-extrabold tracking-[-.06em] text-lime"
+              className="shrink-0 text-xl font-extrabold tracking-[-.06em] text-lime sm:text-2xl"
               to="/"
             >
               MARKET<span className="text-coral">.</span>
@@ -79,8 +81,8 @@ export function Header() {
               }}
             >
               <input
-                className="min-w-0 flex-1 rounded-l-lg bg-transparent px-4 text-sm outline-none"
-                placeholder="Искать товары и категории"
+                className="min-w-0 flex-1 rounded-l-lg bg-transparent px-3 text-sm outline-none sm:px-4"
+                placeholder="Поиск"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -91,12 +93,17 @@ export function Header() {
                 <Search size={20} />
               </button>
             </form>
-            <Link className="header-action hidden md:flex" to="/catalog">
+            <Link className="header-action relative hidden md:flex" to="/favorites">
               <Heart size={21} />
               <span className="hidden lg:inline">Избранное</span>
+              {favorites.count > 0 && (
+                <span className="absolute right-0 top-0 grid h-5 min-w-5 place-items-center rounded-full bg-coral px-1 text-[10px] font-bold text-white">
+                  {favorites.count}
+                </span>
+              )}
             </Link>
             <Link
-              className="header-action"
+              className="header-action hidden md:flex"
               to={session ? "/account" : "/login"}
             >
               {session?.user.avatarUrl ? (
@@ -113,7 +120,7 @@ export function Header() {
               </span>
             </Link>
             <Link
-              className="header-action relative"
+              className="header-action relative hidden md:flex"
               aria-label="Корзина"
               to="/cart"
             >
@@ -127,7 +134,7 @@ export function Header() {
             </Link>
           </div>
           <button
-            className="mt-3 flex items-center gap-2 text-sm font-semibold text-lime sm:hidden"
+            className="mt-2 flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-lime sm:hidden"
             onClick={() => setIsCatalogOpen(true)}
           >
             <Menu size={17} /> Открыть каталог

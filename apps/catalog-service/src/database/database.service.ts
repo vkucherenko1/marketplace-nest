@@ -78,6 +78,19 @@ const productNames: Record<string, readonly string[]> = {
   ],
 };
 
+const demoPhotoIds = [
+  "1517336714731-489689fd1ca8",
+  "1496181133206-80ce9b88a853",
+  "1521572163474-6864f9cf17ab",
+  "1515886657613-9f3515b0c78f",
+  "1542291026-7eec264c27ff",
+  "1558618666-fcd25c85cd64",
+  "1515488042361-ee00e0ddd4e4",
+  "1596462502278-27bfdc403348",
+  "1500530855697-b586d89ba3ee",
+  "1519681393784-d120267933ba",
+] as const;
+
 @Injectable()
 export class DatabaseService implements OnModuleInit {
   constructor(
@@ -190,7 +203,9 @@ export class DatabaseService implements OnModuleInit {
             priceMinor,
             rating: 3.9 + ((sellerIndex + productIndex) % 10) * 0.1,
             reviewCount: 8 + ((sellerIndex * 31 + productIndex * 13) % 180),
-            imageUrl: `https://picsum.photos/seed/${category.slug}-${sellerIndex}-${productIndex}/720/540`,
+            salesCount:
+              80 + (10 - productIndex) * 35 + sellerIndex * 17 + sequence,
+            imageUrl: demoImageUrl(`${category.slug}-${sellerIndex}-${productIndex}`),
             stock: 4 + ((sellerIndex * 7 + productIndex * 11) % 55),
             status: "ACTIVE",
           });
@@ -229,7 +244,8 @@ export class DatabaseService implements OnModuleInit {
           priceMinor: 1_200 + ((hash + number * 137) % 250_000),
           rating: 3.8 + ((number + hash) % 13) / 10,
           reviewCount: 5 + ((number * 17 + hash) % 480),
-          imageUrl: `https://picsum.photos/seed/${category.slug}-${number}/720/540`,
+          salesCount: 25 + ((hash + number * 53) % 5_000),
+          imageUrl: demoImageUrl(`${category.slug}-${number}`),
           stock: 1 + ((number * 11 + hash) % 100),
           status: "ACTIVE",
         });
@@ -275,7 +291,7 @@ export class DatabaseService implements OnModuleInit {
           input.basePrice +
           index * Math.max(500, Math.round(input.basePrice * 0.08)),
         stock: 4 + ((input.sequence + index * 7) % 18),
-        imageUrl: `https://picsum.photos/seed/${input.imageSeed}-variant-${index}/720/540`,
+        imageUrl: demoImageUrl(`${input.imageSeed}-variant-${index}`),
       });
     });
 
@@ -290,7 +306,7 @@ export class DatabaseService implements OnModuleInit {
         id: `${input.productId}-review-${index + 1}`,
         productId: input.productId,
         authorName: authors[index]!,
-        authorAvatarUrl: `https://picsum.photos/seed/reviewer-${input.sequence}-${index}/96/96`,
+        authorAvatarUrl: demoImageUrl(`reviewer-${input.sequence}-${index}`, 96, 96),
         rating: 4 + ((input.sequence + index) % 2),
         reviewText,
         createdAt: new Date(Date.UTC(2026, 4, 20 - index)),
@@ -320,4 +336,9 @@ function stableHash(value: string): number {
     hash = (hash * 31 + character.charCodeAt(0)) | 0;
   }
   return Math.abs(hash);
+}
+
+function demoImageUrl(seed: string, width = 720, height = 540): string {
+  const photoId = demoPhotoIds[stableHash(seed) % demoPhotoIds.length];
+  return `https://images.unsplash.com/photo-${photoId}?auto=format&fit=crop&w=${width}&h=${height}&q=80`;
 }

@@ -11,6 +11,11 @@ const sortOptions: { value: ProductSort; label: string; description: string }[] 
     description: "Сначала наиболее подходящие",
   },
   {
+    value: "sales",
+    label: "По популярности",
+    description: "Сначала чаще покупаемые",
+  },
+  {
     value: "price_asc",
     label: "Сначала дешевле",
     description: "Цена по возрастанию",
@@ -54,7 +59,7 @@ export function CatalogFilters(props: {
 
   return (
     <>
-      <div className="mb-6 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+      <div className="mb-5 flex flex-col justify-between gap-4 lg:mb-6 lg:flex-row lg:items-end">
         <div>
           <p className="eyebrow">Каталог товаров</p>
           <h2 className="section-title">
@@ -62,7 +67,7 @@ export function CatalogFilters(props: {
           </h2>
         </div>
         <form
-          className="flex w-full max-w-xl rounded-xl border border-ink/10 bg-white p-1 shadow-sm"
+          className="flex w-full rounded-xl border border-ink/10 bg-white p-1 shadow-sm lg:max-w-xl"
           onSubmit={(event) => {
             event.preventDefault();
             props.onSearch(searchInput.trim());
@@ -81,9 +86,9 @@ export function CatalogFilters(props: {
         </form>
       </div>
 
-      <div className="mb-7 flex flex-wrap items-center gap-3">
+      <div className="mb-7 flex flex-col gap-3 lg:flex-row lg:items-center">
         {props.showCategoryFilters && (
-          <>
+          <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
             <FilterButton
               active={!props.category}
               label="Все товары"
@@ -103,11 +108,11 @@ export function CatalogFilters(props: {
                 }
               />
             ))}
-          </>
+          </div>
         )}
         <SelectField
           ariaLabel="Сортировка"
-          className="ml-auto min-w-56"
+          className="w-full lg:ml-auto lg:min-w-56 lg:max-w-72"
           value={props.sort}
           options={sortOptions}
           onChange={props.onSortChange}
@@ -125,7 +130,7 @@ function FilterButton(props: {
 }) {
   return (
     <Link
-      className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+      className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
         props.active ? "bg-lime text-white" : "bg-white hover:text-lime"
       }`}
       to={props.to}

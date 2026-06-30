@@ -25,20 +25,36 @@ export function CatalogPage() {
   const breadcrumbs = category
     ? getCategoryBreadcrumbs(category, categories)
     : [];
+  const collapsedBreadcrumbs = collapseCategoryBreadcrumbs(breadcrumbs);
 
   return (
     <div className="pt-8">
-      <nav className="mx-auto flex max-w-[1500px] items-center gap-2 px-5 text-sm text-ink/50 lg:px-10">
-        <Link to="/">Главная</Link>
+      <nav className="mx-auto flex max-w-[1500px] min-w-0 items-center gap-2 overflow-hidden px-3 text-xs text-ink/50 sm:px-4 sm:text-sm lg:px-8">
+        <Link className="shrink-0" to="/">Главная</Link>
         <span>/</span>
-        <Link to="/catalog">Каталог</Link>
-        {breadcrumbs.map((item) => (
+        <Link className="shrink-0" to="/catalog">Каталог</Link>
+        {breadcrumbs.length > collapsedBreadcrumbs.length && (
+          <>
+            <span>/</span>
+            <span
+              className="rounded-full bg-white px-2 py-0.5 text-ink/45"
+              aria-label="Промежуточные категории скрыты"
+            >
+              …
+            </span>
+          </>
+        )}
+        {collapsedBreadcrumbs.map((item) => (
           <span className="contents" key={item.id}>
             <span>/</span>
             {item.id === category?.id ? (
-              <span className="font-semibold text-ink">{item.name}</span>
+              <span className="min-w-0 truncate font-semibold text-ink">
+                {item.name}
+              </span>
             ) : (
-              <Link to={`/category/${item.slug}`}>{item.name}</Link>
+              <Link className="max-w-32 truncate sm:max-w-none" to={`/category/${item.slug}`}>
+                {item.name}
+              </Link>
             )}
           </span>
         ))}
@@ -49,6 +65,13 @@ export function CatalogPage() {
       />
     </div>
   );
+}
+
+function collapseCategoryBreadcrumbs(breadcrumbs: Category[]): Category[] {
+  if (breadcrumbs.length <= 2) {
+    return breadcrumbs;
+  }
+  return breadcrumbs.slice(-2);
 }
 
 function getCategoryBreadcrumbs(

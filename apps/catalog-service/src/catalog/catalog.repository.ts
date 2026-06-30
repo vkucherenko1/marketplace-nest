@@ -45,13 +45,21 @@ export class CatalogRepository {
         .createQueryBuilder("product")
         .select("product.categoryId", "categoryId")
         .addSelect("COUNT(product.id)", "productCount")
+        .addSelect("COALESCE(SUM(product.salesCount), 0)", "salesCount")
         .where("product.status = :status", { status: "ACTIVE" })
         .groupBy("product.categoryId")
-        .getRawMany<{ categoryId: string; productCount: string }>(),
+        .getRawMany<{
+          categoryId: string;
+          productCount: string;
+          salesCount: string;
+        }>(),
     ]);
     const graph = buildCategoryGraph(categoryEntities);
     const countByCategory = new Map(
       directCounts.map((item) => [item.categoryId, Number(item.productCount)]),
+    );
+    const salesByCategory = new Map(
+      directCounts.map((item) => [item.categoryId, Number(item.salesCount)]),
     );
 
     return categoryEntities
@@ -64,6 +72,9 @@ export class CatalogRepository {
         productCount: graph
           .descendants(category.id)
           .reduce((total, id) => total + (countByCategory.get(id) ?? 0), 0),
+        salesCount: graph
+          .descendants(category.id)
+          .reduce((total, id) => total + (salesByCategory.get(id) ?? 0), 0),
       }))
       .sort(
         (left, right) =>
@@ -86,6 +97,7 @@ export class CatalogRepository {
       parentId: entity.parentId,
       depth: await this.categoryDepth(entity.id),
       productCount: 0,
+      salesCount: 0,
     };
   }
 
@@ -202,6 +214,7 @@ export class CatalogRepository {
       { column: string; direction: "ASC" | "DESC" }
     > = {
       relevance: { column: "product.rating", direction: "DESC" },
+      sales: { column: "product.salesCount", direction: "DESC" },
       price_asc: { column: "product.priceMinor", direction: "ASC" },
       price_desc: { column: "product.priceMinor", direction: "DESC" },
       rating: { column: "product.rating", direction: "DESC" },
@@ -316,6 +329,7 @@ export class CatalogRepository {
         sellerId,
         rating: 0,
         reviewCount: 0,
+        salesCount: 0,
         status: "HIDDEN",
       }),
     );
@@ -351,6 +365,7 @@ export class CatalogRepository {
         status: product.status,
         rating: product.rating,
         reviewCount: product.reviewCount,
+        salesCount: product.salesCount,
         imageUrl: product.imageUrl,
       })),
       page,
@@ -425,6 +440,7 @@ export class CatalogRepository {
       currency: "USD",
       rating: product.rating,
       reviewCount: product.reviewCount,
+      salesCount: product.salesCount,
       imageUrl: product.imageUrl,
       inStock: product.stock > 0,
     };

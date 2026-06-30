@@ -3,9 +3,12 @@ import test from "node:test";
 import {
   cartKey,
   cartStorageKey,
+  favoritesStorageKey,
   readCart,
+  readFavorites,
   readRecent,
   rememberProduct,
+  writeFavorites,
   writeCart,
 } from "../src/storage.ts";
 import { clearSession, readSession, saveSession } from "../src/features/auth/session.ts";
@@ -46,6 +49,7 @@ function product(id: string) {
     imageUrl: "https://example.com/product.jpg",
     rating: 4.8,
     reviewCount: 10,
+    salesCount: 120,
     inStock: true,
     category: { id: "category-1", name: "Категория", slug: "category" },
     seller: { id: "seller-1", name: "Продавец", rating: 4.9, reviewCount: 50 },
@@ -133,6 +137,7 @@ test("дерево каталога изначально содержит тол
       parentId: null,
       depth: 1,
       productCount: 100,
+      salesCount: 300,
     },
     {
       id: "child",
@@ -141,6 +146,7 @@ test("дерево каталога изначально содержит тол
       parentId: "root",
       depth: 2,
       productCount: 50,
+      salesCount: 120,
     },
   ]);
 
@@ -171,4 +177,16 @@ test("корзины разных аккаунтов и гостя изолир�
   assert.deepEqual(readCart("seller-1"), [sellerItem]);
   assert.deepEqual(readCart(null), []);
   assert.notEqual(cartStorageKey("buyer-1"), cartStorageKey("seller-1"));
+});
+
+test("избранное разных аккаунтов изолировано", () => {
+  const buyerProduct = product("buyer-favorite");
+  const sellerProduct = product("seller-favorite");
+
+  writeFavorites("buyer-1", [buyerProduct]);
+  writeFavorites("seller-1", [sellerProduct]);
+
+  assert.deepEqual(readFavorites("buyer-1"), [buyerProduct]);
+  assert.deepEqual(readFavorites("seller-1"), [sellerProduct]);
+  assert.notEqual(favoritesStorageKey("buyer-1"), favoritesStorageKey("seller-1"));
 });

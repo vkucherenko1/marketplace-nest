@@ -24,14 +24,14 @@ export function CartPage() {
   }
 
   return (
-    <section className="mx-auto max-w-[1500px] px-4 py-8 lg:px-8">
-      <h1 className="text-4xl font-bold">Корзина</h1>
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
+    <section className="mx-auto max-w-[1500px] px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
+      <h1 className="text-3xl font-bold sm:text-4xl">Корзина</h1>
+      <div className="mt-6 grid gap-6 lg:mt-8 lg:grid-cols-[1fr_360px] lg:gap-8">
         <div className="grid gap-4">
           {cart.items.map((item) => (
             <article
               key={item.key}
-              className="grid grid-cols-[100px_1fr] gap-5 rounded-2xl bg-white p-4 shadow-sm sm:grid-cols-[130px_1fr_auto]"
+              className="grid grid-cols-[88px_1fr] gap-4 rounded-2xl bg-white p-3 shadow-sm sm:grid-cols-[130px_1fr_auto] sm:gap-5 sm:p-4"
             >
               <img
                 className="aspect-square w-full rounded-xl object-cover"
@@ -64,7 +64,7 @@ export function CartPage() {
                   </p>
                 )}
               </div>
-              <div className="col-span-2 flex items-center gap-2 sm:col-span-1">
+              <div className="col-span-2 flex items-center justify-between gap-2 sm:col-span-1 sm:justify-start">
                 <QuantityControl
                   name={item.product.name}
                   quantity={item.quantity}
@@ -82,7 +82,7 @@ export function CartPage() {
             </article>
           ))}
         </div>
-        <aside className="h-fit rounded-3xl bg-white p-7 shadow-card">
+        <aside className="h-fit rounded-3xl bg-white p-5 shadow-card sm:p-7 lg:sticky lg:top-28">
           <h2 className="text-xl font-bold">Ваш заказ</h2>
           <p className="mt-4 text-sm text-ink/55">Товаров: {cart.count}</p>
           <div className="mt-5 flex items-end justify-between">
@@ -91,7 +91,7 @@ export function CartPage() {
               {money.format(cart.totalMinor / 100)}
             </strong>
           </div>
-          <button className="mt-7 w-full cursor-pointer rounded-xl bg-lime py-4 font-bold text-white">
+          <button className="tap-target mt-7 w-full cursor-pointer rounded-xl bg-lime py-4 font-bold text-white">
             Перейти к оформлению
           </button>
         </aside>
@@ -127,7 +127,7 @@ function QuantityControl(props: {
         type="button"
         aria-label={`Уменьшить количество ${props.name}`}
         disabled={props.quantity <= 1}
-        className="grid h-9 w-9 cursor-pointer place-items-center rounded-lg bg-white text-lime disabled:cursor-not-allowed disabled:opacity-35"
+        className="grid h-11 w-11 cursor-pointer place-items-center rounded-lg bg-white text-lime disabled:cursor-not-allowed disabled:opacity-35 sm:h-9 sm:w-9"
         onClick={() => props.onChange(props.quantity - 1)}
       >
         <Minus size={16} />
@@ -137,7 +137,7 @@ function QuantityControl(props: {
         inputMode="numeric"
         pattern="[0-9]*"
         aria-label={`Количество ${props.name}`}
-        className="w-14 bg-transparent px-1 text-center font-semibold outline-none"
+        className="h-11 w-14 bg-transparent px-1 text-center font-semibold outline-none sm:h-9"
         value={value}
         onChange={(event) => {
           if (/^\d*$/.test(event.target.value)) {
@@ -155,7 +155,7 @@ function QuantityControl(props: {
         type="button"
         aria-label={`Увеличить количество ${props.name}`}
         disabled={props.quantity >= props.max}
-        className="grid h-9 w-9 cursor-pointer place-items-center rounded-lg bg-white text-lime disabled:cursor-not-allowed disabled:opacity-35"
+        className="grid h-11 w-11 cursor-pointer place-items-center rounded-lg bg-white text-lime disabled:cursor-not-allowed disabled:opacity-35 sm:h-9 sm:w-9"
         onClick={() => props.onChange(props.quantity + 1)}
       >
         <Plus size={16} />

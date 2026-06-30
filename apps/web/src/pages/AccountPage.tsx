@@ -12,6 +12,7 @@ import { RoleDashboard } from "../features/account/RoleDashboard";
 import { AdminUserManager } from "../features/account/AdminUserManager";
 import { SellerDashboard } from "../features/seller/SellerDashboard";
 import { DatePicker } from "../shared/DatePicker";
+import { readImageFiles } from "../shared/fileUpload";
 import { SelectField } from "../shared/SelectField";
 
 const emptyProfile: UpdateUserProfile = {
@@ -206,14 +207,21 @@ export function AccountPage() {
                 }
               />
             </Field>
-            <Field className="md:col-span-2" label="URL аватара">
+            <Field className="md:col-span-2" label="Аватар">
               <input
-                type="url"
-                placeholder="https://example.com/avatar.jpg"
-                value={profile.avatarUrl ?? ""}
-                onChange={(event) =>
-                  setProfile({ ...profile, avatarUrl: event.target.value || null })
-                }
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  const files = event.target.files;
+                  if (!files?.length) {
+                    return;
+                  }
+                  void readImageFiles(files).then(([image]) => {
+                    if (image) {
+                      setProfile({ ...profile, avatarUrl: image.dataUrl });
+                    }
+                  });
+                }}
               />
             </Field>
           </div>

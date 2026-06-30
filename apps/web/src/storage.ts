@@ -2,6 +2,7 @@ import type { CartItem, ProductCard, ProductVariant } from "@marketplace/contrac
 
 const LEGACY_CART_KEY = "marketplace-cart-v2";
 const CART_KEY_PREFIX = "marketplace-cart-v3";
+const FAVORITES_KEY_PREFIX = "marketplace-favorites-v1";
 const RECENT_KEY = "marketplace-recent";
 
 function read<T>(key: string, fallback: T): T {
@@ -39,6 +40,21 @@ export function writeCart(
   items: CartItem[],
 ): void {
   localStorage.setItem(cartStorageKey(ownerId), JSON.stringify(items));
+}
+
+export function favoritesStorageKey(ownerId: string | null): string {
+  return `${FAVORITES_KEY_PREFIX}:${ownerId ?? "guest"}`;
+}
+
+export function readFavorites(ownerId: string | null): ProductCard[] {
+  return read(favoritesStorageKey(ownerId), []);
+}
+
+export function writeFavorites(
+  ownerId: string | null,
+  products: ProductCard[],
+): void {
+  localStorage.setItem(favoritesStorageKey(ownerId), JSON.stringify(products));
 }
 
 export function cartKey(

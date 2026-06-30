@@ -12,6 +12,7 @@ import { api } from "../../api";
 const pageSizes = [20, 50, 100] as const satisfies readonly PageSize[];
 const productSorts = [
   "relevance",
+  "sales",
   "price_asc",
   "price_desc",
   "rating",

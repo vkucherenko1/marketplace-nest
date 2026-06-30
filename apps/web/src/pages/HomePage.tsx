@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CatalogSection } from "../features/catalog/CatalogSection";
+import { PopularCategoryRails } from "../features/catalog/PopularCategoryRails";
 import { RecentProducts } from "../features/product/RecentProducts";
 import { Hero } from "../layout/Hero";
 import { readRecent } from "../storage";
@@ -9,7 +9,7 @@ export function HomePage() {
   return (
     <>
       <Hero />
-      <CatalogSection />
+      <PopularCategoryRails />
       <RecentProducts products={recentProducts} />
     </>
   );

@@ -53,8 +53,8 @@ export function ProductPage() {
   const isInCart = cart.has(product, selectedVariant);
 
   return (
-    <section className="mx-auto max-w-[1500px] px-4 py-8 lg:px-8">
-      <nav className="mb-7 flex flex-wrap gap-2 text-sm text-ink/50">
+    <section className="mx-auto max-w-[1500px] px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
+      <nav className="mb-5 flex flex-wrap gap-2 text-xs text-ink/50 sm:mb-7 sm:text-sm">
         <Link to="/">Главная</Link>
         <span>/</span>
         <Link to="/catalog">Каталог</Link>
@@ -66,17 +66,17 @@ export function ProductPage() {
         <span className="text-ink">{product.name}</span>
       </nav>
 
-      <div className="grid gap-8 rounded-3xl bg-white p-5 shadow-card lg:grid-cols-[38%_1fr_320px] lg:p-8">
+      <div className="grid gap-6 rounded-3xl bg-white p-4 shadow-card sm:p-5 lg:grid-cols-[34%_1fr_320px] lg:gap-8 lg:p-8">
         <div className="flex items-start justify-center">
           <img
-            className="max-h-[430px] w-full rounded-2xl object-cover"
+            className="max-h-[300px] w-full rounded-2xl object-cover sm:max-h-[360px] lg:max-h-[430px]"
             src={displayedImage}
             alt={product.name}
           />
         </div>
         <div className="flex flex-col">
           <p className="eyebrow">{product.category.name}</p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight lg:text-4xl">
+          <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
             {product.name}
           </h1>
           <Link
@@ -100,9 +100,9 @@ export function ProductPage() {
         </div>
 
         {/* Цена и главное действие вынесены в отдельный блок, как на крупных витринах. */}
-        <aside className="h-fit rounded-2xl border border-ink/8 bg-cream p-5">
+        <aside className="sticky bottom-24 h-fit rounded-2xl border border-ink/8 bg-cream p-4 sm:p-5 lg:static">
           <div>
-            <p className="text-3xl font-extrabold text-lime">
+            <p className="text-2xl font-extrabold text-lime sm:text-3xl">
               {money.format(displayedPrice / 100)}
             </p>
             <p className="mt-2 text-sm text-ink/55">
@@ -112,14 +112,14 @@ export function ProductPage() {
             </p>
             {isInCart ? (
               <Link
-                className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-lime/10 px-6 py-4 font-bold text-lime"
+                className="tap-target mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-lime/10 px-6 py-4 font-bold text-lime"
                 to="/cart"
               >
                 <Check size={19} /> В корзине — перейти
               </Link>
             ) : (
               <button
-                className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-lime px-6 py-4 font-bold text-white disabled:opacity-50"
+                className="tap-target mt-6 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-lime px-6 py-4 font-bold text-white disabled:opacity-50"
                 disabled={!inStock}
                 onClick={() => {
                   cart.add(product, selectedVariant);
@@ -138,11 +138,11 @@ export function ProductPage() {
         </aside>
       </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1.25fr_.75fr]">
-        <article className="rounded-3xl bg-white p-7 lg:p-10">
+      <div className="mt-6 grid gap-6 lg:mt-8 lg:grid-cols-[1.25fr_.75fr] lg:gap-8">
+        <article className="rounded-3xl bg-white p-5 sm:p-7 lg:p-10">
           <p className="eyebrow">Описание</p>
           <h2 className="mt-2 text-3xl font-semibold">О товаре</h2>
-          <p className="mt-6 text-lg leading-9 text-ink/70">
+          <p className="mt-5 text-base leading-8 text-ink/70 sm:mt-6 sm:text-lg sm:leading-9">
             {product.description}
           </p>
           <p className="mt-5 leading-8 text-ink/60">
@@ -152,7 +152,7 @@ export function ProductPage() {
           </p>
         </article>
         <Link
-          className="group rounded-3xl bg-white p-7 shadow-card transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime/20 lg:p-10"
+          className="group rounded-3xl bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime/20 sm:p-7 lg:p-10"
           to={`/seller/${product.seller.id}`}
           onClick={() =>
             sessionStorage.setItem(

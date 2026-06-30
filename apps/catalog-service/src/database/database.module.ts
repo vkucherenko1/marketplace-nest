@@ -6,7 +6,10 @@ import { ProductReviewEntity } from "./entities/product-review.entity";
 import { ProductVariantEntity } from "./entities/product-variant.entity";
 import { ProductEntity } from "./entities/product.entity";
 import { SellerEntity } from "./entities/seller.entity";
+import { AddProductSalesCount1770900000000 } from "./migrations/add-product-sales-count";
 import { InitialCatalogSchema1770800000000 } from "./migrations/initial-catalog-schema";
+import { NormalizePicsumImageUrls1771000000000 } from "./migrations/normalize-picsum-image-urls";
+import { ReplacePicsumImageUrls1771100000000 } from "./migrations/replace-picsum-image-urls";
 
 @Module({
   imports: [
@@ -24,7 +27,12 @@ import { InitialCatalogSchema1770800000000 } from "./migrations/initial-catalog-
       ],
       synchronize: false,
       migrationsRun: true,
-      migrations: [InitialCatalogSchema1770800000000],
+      migrations: [
+        InitialCatalogSchema1770800000000,
+        AddProductSalesCount1770900000000,
+        NormalizePicsumImageUrls1771000000000,
+        ReplacePicsumImageUrls1771100000000,
+      ],
       logging: false,
       extra: {
         max: 30,

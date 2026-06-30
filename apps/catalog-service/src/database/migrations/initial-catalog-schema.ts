@@ -67,6 +67,7 @@ export class InitialCatalogSchema1770800000000 implements MigrationInterface {
             { name: "currency", type: "text", default: "'USD'" },
             { name: "rating", type: "numeric", precision: 3, scale: 2 },
             { name: "review_count", type: "integer" },
+            { name: "sales_count", type: "integer", default: "0" },
             { name: "image_url", type: "text" },
             { name: "stock", type: "integer" },
             { name: "status", type: "text", default: "'ACTIVE'" },
@@ -93,6 +94,10 @@ export class InitialCatalogSchema1770800000000 implements MigrationInterface {
         new TableIndex({
           name: "products_listing_idx",
           columnNames: ["category_id", "status", "rating", "price_minor"],
+        }),
+        new TableIndex({
+          name: "products_sales_idx",
+          columnNames: ["category_id", "status", "sales_count"],
         }),
         new TableIndex({
           name: "products_seller_idx",
