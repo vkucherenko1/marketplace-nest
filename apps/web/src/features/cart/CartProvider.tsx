@@ -19,6 +19,7 @@ interface CartContextValue {
   has: (product: ProductCard, variant?: ProductVariant | null) => boolean;
   setQuantity: (key: string, quantity: number) => void;
   remove: (key: string) => void;
+  clear: () => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -80,6 +81,9 @@ export function CartProvider({ children }: PropsWithChildren) {
       },
       remove(key) {
         update(items.filter((item) => item.key !== key));
+      },
+      clear() {
+        update([]);
       },
     }),
     [items, ownerId],

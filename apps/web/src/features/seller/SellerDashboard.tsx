@@ -263,7 +263,14 @@ export function SellerDashboard({ accessToken }: { accessToken: string }) {
             onImages={(images) => {
               const next = [...uploadedImages, ...images];
               setUploadedImages(next);
-              setForm({ ...form, imageUrl: form.imageUrl || next[0]?.dataUrl || "" });
+              setForm({
+                ...form,
+                imageUrl:
+                  form.imageUrl ||
+                  next[0]?.publicUrl ||
+                  next[0]?.dataUrl ||
+                  "",
+              });
             }}
             onCoverChange={(imageUrl) => setForm({ ...form, imageUrl })}
             onRemove={(imageId) => {
@@ -272,11 +279,14 @@ export function SellerDashboard({ accessToken }: { accessToken: string }) {
               setForm({
                 ...form,
                 imageUrl:
-                  form.imageUrl === uploadedImages.find((image) => image.id === imageId)?.dataUrl
-                    ? next[0]?.dataUrl ?? ""
+                  form.imageUrl ===
+                  (uploadedImages.find((image) => image.id === imageId)?.publicUrl ??
+                    uploadedImages.find((image) => image.id === imageId)?.dataUrl)
+                    ? next[0]?.publicUrl ?? next[0]?.dataUrl ?? ""
                     : form.imageUrl,
               });
             }}
+            accessToken={accessToken}
           />
           <button
             className="primary-button mt-6 w-full"
@@ -312,9 +322,24 @@ function ProductImageDropzone(props: {
   onImages: (images: UploadedImage[]) => void;
   onCoverChange: (imageUrl: string) => void;
   onRemove: (imageId: string) => void;
+  accessToken: string;
 }) {
   async function handleFiles(files: FileList | File[]): Promise<void> {
-    const images = await readImageFiles(files);
+    const images = await Promise.all(
+      (await readImageFiles(files)).map(async (image) => {
+        const ticket = await api.signMediaUpload(props.accessToken, {
+          filename: image.name,
+          contentType: image.type,
+          size: image.size,
+        });
+        await fetch(ticket.uploadUrl, {
+          method: "PUT",
+          headers: ticket.requiredHeaders,
+          body: image.file,
+        });
+        return { ...image, publicUrl: ticket.publicUrl };
+      }),
+    );
     if (images.length > 0) {
       props.onImages(images);
     }
@@ -351,7 +376,8 @@ function ProductImageDropzone(props: {
       {props.images.length > 0 && (
         <div className="mt-4 grid grid-cols-3 gap-3">
           {props.images.map((image) => {
-            const isCover = image.dataUrl === props.coverUrl;
+            const imageUrl = image.publicUrl ?? image.dataUrl;
+            const isCover = imageUrl === props.coverUrl;
             return (
               <div key={image.id} className="relative">
                 <button
@@ -359,7 +385,7 @@ function ProductImageDropzone(props: {
                   className={`block w-full overflow-hidden rounded-xl border-2 ${
                     isCover ? "border-lime" : "border-transparent"
                   }`}
-                  onClick={() => props.onCoverChange(image.dataUrl)}
+                  onClick={() => props.onCoverChange(imageUrl)}
                 >
                   <img
                     className="aspect-square w-full object-cover"

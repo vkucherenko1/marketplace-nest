@@ -16,7 +16,10 @@ export class ServiceProxy {
     } = {},
   ): Promise<T> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3_000);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      Number(process.env.UPSTREAM_TIMEOUT_MS ?? 10_000),
+    );
     try {
       // Gateway ограничивает время ожидания, чтобы зависший микросервис
       // не исчерпал пул соединений публичного API.

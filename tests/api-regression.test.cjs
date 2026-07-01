@@ -347,3 +347,92 @@ test("товар продавца проходит HIDDEN → ACTIVE → HIDDEN 
     }
   }
 });
+
+test("checkout создаёт заказ с reservation и защищён JWT", async () => {
+  const unauthorized = await request("checkout", {
+    method: "POST",
+    body: {
+      items: [{ productId: "p1", quantity: 1 }],
+      deliveryAddress: "Кишинёв",
+      paymentMethod: "CARD",
+      idempotencyKey: "unauthorized",
+    },
+  });
+  assert.equal(unauthorized.response.status, 401);
+
+  const session = await login("buyer@market.local");
+  const list = await request("products?page=1&pageSize=20");
+  const product = list.body.items.find((item) => item.inStock);
+  assert.ok(product);
+  const checkout = await request("checkout", {
+    method: "POST",
+    token: session.accessToken,
+    body: {
+      items: [{ productId: product.id, quantity: 1 }],
+      deliveryAddress: "Кишинёв, центр",
+      paymentMethod: "CARD",
+      idempotencyKey: `regression-${Date.now()}`,
+    },
+  });
+  assert.equal(checkout.response.status, 201);
+  assert.equal(checkout.body.status, "RESERVED");
+  assert.equal(checkout.body.totalMinor, product.priceMinor);
+
+  const orders = await request("orders", { token: session.accessToken });
+  assert.equal(orders.response.status, 200);
+  assert.ok(orders.body.some((order) => order.id === checkout.body.id));
+});
+
+test("media-service выдаёт signed upload ticket только авторизованным", async () => {
+  const unauthorized = await request("media/uploads/sign", {
+    method: "POST",
+    body: { filename: "photo.jpg", contentType: "image/jpeg", size: 1000 },
+  });
+  assert.equal(unauthorized.response.status, 401);
+
+  const session = await login("seller1@market.local");
+  const signed = await request("media/uploads/sign", {
+    method: "POST",
+    token: session.accessToken,
+    body: { filename: "photo.jpg", contentType: "image/jpeg", size: 1000 },
+  });
+  assert.equal(signed.response.status, 201);
+  assert.match(signed.body.uploadUrl, /X-Amz-Signature=/);
+  assert.match(signed.body.publicUrl, /marketplace-media/);
+});
+
+test("analytics принимает события и отдаёт seller read model", async () => {
+  const product = await request("products/laptops-5-1");
+  const sellerId = product.body.seller.id;
+  const recorded = await request("analytics/events", {
+    method: "POST",
+    body: {
+      name: "PRODUCT_VIEW",
+      productId: product.body.id,
+      sellerId,
+      categoryId: product.body.category.id,
+    },
+  });
+  assert.equal(recorded.response.status, 201);
+
+  const sellerSession = await login("seller1@market.local");
+  const stats = await request(`analytics/sellers/${sellerId}`, {
+    token: sellerSession.accessToken,
+  });
+  assert.equal(stats.response.status, 200);
+  assert.equal(stats.body.sellerId, sellerId);
+  assert.ok(stats.body.productViews >= 1);
+});
+
+test("search-indexer умеет reindex и поиск через gateway", async () => {
+  const reindex = await request("search/reindex", { method: "POST" });
+  assert.equal(reindex.response.status, 201);
+  assert.ok(reindex.body.indexed > 0);
+
+  const search = await request(
+    `search/products?page=1&pageSize=20&search=${encodeURIComponent("AeroBook")}`,
+  );
+  assert.equal(search.response.status, 200);
+  assert.equal(search.body.page, 1);
+  assert.ok(Array.isArray(search.body.items));
+});

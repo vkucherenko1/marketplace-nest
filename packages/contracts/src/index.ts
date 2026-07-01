@@ -186,3 +186,109 @@ export interface PlatformOverview {
   sellers: number;
   reviews: number;
 }
+
+export interface CheckoutItem {
+  productId: string;
+  variantId?: string | null;
+  quantity: number;
+}
+
+export interface CheckoutRequest {
+  items: CheckoutItem[];
+  deliveryAddress: string;
+  paymentMethod: "CARD" | "CASH_ON_DELIVERY";
+  idempotencyKey: string;
+}
+
+export interface ReserveInventoryRequest {
+  orderId: string;
+  items: CheckoutItem[];
+  expiresAt: string;
+}
+
+export interface ReservedInventoryLine {
+  productId: string;
+  variantId: string | null;
+  sellerId: string;
+  categoryId: string;
+  quantity: number;
+  priceMinor: number;
+  reservedUntil: string;
+}
+
+export interface ReserveInventoryResponse {
+  reservationId: string;
+  lines: ReservedInventoryLine[];
+}
+
+export type OrderStatus =
+  | "CREATED"
+  | "RESERVED"
+  | "PAID"
+  | "SHIPPED"
+  | "CANCELLED";
+
+export interface OrderLine {
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  priceMinor: number;
+  reservedUntil: string;
+}
+
+export interface OrderSummary {
+  id: string;
+  buyerId: string;
+  status: OrderStatus;
+  totalMinor: number;
+  currency: "USD";
+  items: OrderLine[];
+  deliveryAddress: string;
+  createdAt: string;
+}
+
+export interface MediaUploadRequest {
+  filename: string;
+  contentType: string;
+  size: number;
+}
+
+export interface MediaUploadTicket {
+  objectKey: string;
+  uploadUrl: string;
+  publicUrl: string;
+  expiresIn: number;
+  requiredHeaders: Record<string, string>;
+}
+
+export type AnalyticsEventName =
+  | "PRODUCT_VIEW"
+  | "SEARCH_RESULT_IMPRESSION"
+  | "ADD_TO_CART"
+  | "CHECKOUT_CREATED";
+
+export interface AnalyticsEvent {
+  name: AnalyticsEventName;
+  orderId?: string;
+  productId?: string;
+  sellerId?: string;
+  categoryId?: string;
+  searchQuery?: string;
+  position?: number;
+  quantity?: number;
+  occurredAt?: string;
+}
+
+export interface SellerAnalytics {
+  sellerId: string;
+  productViews: number;
+  searchImpressions: number;
+  addToCart: number;
+  purchases: number;
+  topProducts: Array<{
+    productId: string;
+    views: number;
+    addToCart: number;
+    purchases: number;
+  }>;
+}

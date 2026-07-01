@@ -1,7 +1,11 @@
 export interface UploadedImage {
   id: string;
   name: string;
+  type: string;
+  size: number;
+  file: File;
   dataUrl: string;
+  publicUrl?: string;
 }
 
 export async function readImageFiles(files: FileList | File[]): Promise<UploadedImage[]> {
@@ -15,6 +19,9 @@ export async function readImageFiles(files: FileList | File[]): Promise<Uploaded
             resolve({
               id: `${file.name}-${file.size}-${file.lastModified}`,
               name: file.name,
+              type: file.type,
+              size: file.size,
+              file,
               dataUrl: String(reader.result),
             });
           reader.onerror = () => reject(new Error("Не удалось прочитать файл"));

@@ -25,6 +25,16 @@ export function ProductPage() {
       .then((item) => {
         setProduct(item);
         rememberProduct(item);
+        // Аналитика пишется best-effort: карточка товара не должна падать,
+        // если event pipeline временно недоступен.
+        void api
+          .recordAnalytics({
+            name: "PRODUCT_VIEW",
+            productId: item.id,
+            sellerId: item.seller.id,
+            categoryId: item.category.id,
+          })
+          .catch(() => undefined);
       })
       .catch((reason: unknown) =>
         setError(reason instanceof Error ? reason.message : "Товар не найден"),
@@ -123,6 +133,15 @@ export function ProductPage() {
                 disabled={!inStock}
                 onClick={() => {
                   cart.add(product, selectedVariant);
+                  void api
+                    .recordAnalytics({
+                      name: "ADD_TO_CART",
+                      productId: product.id,
+                      sellerId: product.seller.id,
+                      categoryId: product.category.id,
+                      quantity: 1,
+                    })
+                    .catch(() => undefined);
                   setAdded(true);
                 }}
               >

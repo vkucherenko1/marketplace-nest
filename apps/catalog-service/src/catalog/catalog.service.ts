@@ -12,11 +12,14 @@ import type {
   ProductDetail,
   ProductReviewsResponse,
   PlatformOverview,
+  ReserveInventoryRequest,
+  ReserveInventoryResponse,
   SellerProduct,
   SaveCategory,
 } from "@marketplace/contracts";
 import type { AuthenticatedRequest } from "../common/access-token.guard";
 import { CatalogRepository } from "./catalog.repository";
+import { NatsEventPublisher } from "../common/nats-event-publisher";
 import {
   CreateProductDto,
   ProductListQueryDto,
@@ -27,7 +30,10 @@ import {
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly repository: CatalogRepository) {}
+  constructor(
+    private readonly repository: CatalogRepository,
+    private readonly events: NatsEventPublisher,
+  ) {}
 
   categories(): Promise<Category[]> {
     return this.repository.listCategories();
@@ -104,7 +110,13 @@ export class CatalogService {
     const sellerId = this.requireSeller(user);
     // Новый товар всегда создаётся скрытым. Продавец должен отдельно проверить
     // карточку и вручную опубликовать её через операцию восстановления/активации.
-    return this.repository.createProduct(sellerId, input);
+    const created = await this.repository.createProduct(sellerId, input);
+    await this.events.publish("marketplace.product.created", {
+      productId: created.id,
+      sellerId,
+      occurredAt: new Date().toISOString(),
+    });
+    return created;
   }
 
   sellerProducts(
@@ -134,6 +146,26 @@ export class CatalogService {
     if (!(await this.repository.setStatus(sellerId, id, status))) {
       throw new NotFoundException("Product was not found or is not owned by seller");
     }
+    await this.events.publish("marketplace.product.updated", {
+      productId: id,
+      sellerId,
+      status,
+      occurredAt: new Date().toISOString(),
+    });
+  }
+
+  async reserveInventory(
+    internalToken: string | undefined,
+    input: ReserveInventoryRequest,
+  ): Promise<ReserveInventoryResponse> {
+    if (internalToken !== (process.env.INTERNAL_SERVICE_TOKEN ?? "local-internal-token")) {
+      throw new ForbiddenException("Internal token required");
+    }
+    const reservation = await this.repository.reserveInventory(input);
+    if (!reservation) {
+      throw new ConflictException("Insufficient inventory");
+    }
+    return reservation;
   }
 
   private requireSeller(user: AuthenticatedRequest["user"]): string {

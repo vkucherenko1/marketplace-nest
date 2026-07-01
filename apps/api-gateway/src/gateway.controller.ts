@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Headers,
   HttpCode,
   Param,
@@ -12,17 +13,23 @@ import {
 } from "@nestjs/common";
 import type {
   Category,
+  CheckoutRequest,
+  MediaUploadRequest,
+  MediaUploadTicket,
   LoginResponse,
   ManagedUser,
+  OrderSummary,
   PaginatedResponse,
   ProductCard,
   ProductDetail,
   ProductReviewsResponse,
   PlatformOverview,
   SellerProduct,
+  SellerAnalytics,
   SaveCategory,
   UserProfile,
   UserRole,
+  AnalyticsEvent,
 } from "@marketplace/contracts";
 import { ServiceProxy } from "./service-proxy.service";
 
@@ -32,12 +39,37 @@ export class GatewayController {
     process.env.AUTH_SERVICE_URL ?? "http://localhost:3001";
   private readonly catalogUrl =
     process.env.CATALOG_SERVICE_URL ?? "http://localhost:3002";
+  private readonly orderUrl =
+    process.env.ORDER_SERVICE_URL ?? "http://localhost:3003";
+  private readonly mediaUrl =
+    process.env.MEDIA_SERVICE_URL ?? "http://localhost:3004";
+  private readonly searchUrl =
+    process.env.SEARCH_SERVICE_URL ?? "http://localhost:3005";
+  private readonly analyticsUrl =
+    process.env.ANALYTICS_SERVICE_URL ?? "http://localhost:3006";
 
   constructor(private readonly proxy: ServiceProxy) {}
 
   @Get("health")
   health(): { status: "ok"; service: "api-gateway" } {
     return { status: "ok", service: "api-gateway" };
+  }
+
+  @Get("metrics")
+  @Header("content-type", "text/plain; version=0.0.4")
+  metrics(): string {
+    const memory = process.memoryUsage();
+    // Минимальный Prometheus-compatible endpoint для локального compose.
+    // В production сюда обычно добавляют request counters/histograms.
+    return [
+      "# HELP marketplace_gateway_uptime_seconds Gateway process uptime.",
+      "# TYPE marketplace_gateway_uptime_seconds gauge",
+      `marketplace_gateway_uptime_seconds ${process.uptime().toFixed(0)}`,
+      "# HELP marketplace_gateway_heap_used_bytes Gateway heap used bytes.",
+      "# TYPE marketplace_gateway_heap_used_bytes gauge",
+      `marketplace_gateway_heap_used_bytes ${memory.heapUsed}`,
+      "",
+    ].join("\n");
   }
 
   @Post("auth/login")
@@ -247,6 +279,89 @@ export class GatewayController {
   ): Promise<void> {
     return this.proxy.request(this.catalogUrl, `seller/products/${id}`, {
       method: "DELETE",
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Post("checkout")
+  checkout(
+    @Headers("authorization") authorization: string | undefined,
+    @Body() body: CheckoutRequest,
+  ): Promise<OrderSummary> {
+    return this.proxy.request(this.orderUrl, "checkout", {
+      method: "POST",
+      body,
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Get("orders")
+  orders(
+    @Headers("authorization") authorization: string | undefined,
+  ): Promise<OrderSummary[]> {
+    return this.proxy.request(this.orderUrl, "orders", {
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Get("orders/:id")
+  order(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("id") id: string,
+  ): Promise<OrderSummary> {
+    return this.proxy.request(this.orderUrl, `orders/${id}`, {
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Post("media/uploads/sign")
+  signUpload(
+    @Headers("authorization") authorization: string | undefined,
+    @Body() body: MediaUploadRequest,
+  ): Promise<MediaUploadTicket> {
+    return this.proxy.request(this.mediaUrl, "media/uploads/sign", {
+      method: "POST",
+      body,
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Post("search/reindex")
+  reindexSearch(): Promise<{ indexed: number; source: "catalog" }> {
+    return this.proxy.request(this.searchUrl, "search/reindex", {
+      method: "POST",
+    });
+  }
+
+  @Get("search/products")
+  searchProducts(
+    @Query() query: Record<string, string | string[]>,
+  ): Promise<PaginatedResponse<ProductCard>> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (Array.isArray(value)) {
+        value.forEach((item) => params.append(key, item));
+      } else if (value !== undefined) {
+        params.set(key, value);
+      }
+    }
+    return this.proxy.request(this.searchUrl, `search/products?${params}`);
+  }
+
+  @Post("analytics/events")
+  recordAnalytics(@Body() body: AnalyticsEvent): Promise<{ accepted: true }> {
+    return this.proxy.request(this.analyticsUrl, "analytics/events", {
+      method: "POST",
+      body,
+    });
+  }
+
+  @Get("analytics/sellers/:sellerId")
+  sellerAnalytics(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("sellerId") sellerId: string,
+  ): Promise<SellerAnalytics> {
+    return this.proxy.request(this.analyticsUrl, `analytics/sellers/${sellerId}`, {
       ...(authorization ? { authorization } : {}),
     });
   }

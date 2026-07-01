@@ -5,7 +5,9 @@ import { CategoryEntity } from "./entities/category.entity";
 import { ProductReviewEntity } from "./entities/product-review.entity";
 import { ProductVariantEntity } from "./entities/product-variant.entity";
 import { ProductEntity } from "./entities/product.entity";
+import { InventoryReservationEntity } from "./entities/inventory-reservation.entity";
 import { SellerEntity } from "./entities/seller.entity";
+import { AddInventoryReservations1771200000000 } from "./migrations/add-inventory-reservations";
 import { AddProductSalesCount1770900000000 } from "./migrations/add-product-sales-count";
 import { InitialCatalogSchema1770800000000 } from "./migrations/initial-catalog-schema";
 import { NormalizePicsumImageUrls1771000000000 } from "./migrations/normalize-picsum-image-urls";
@@ -24,6 +26,7 @@ import { ReplacePicsumImageUrls1771100000000 } from "./migrations/replace-picsum
         ProductEntity,
         ProductVariantEntity,
         ProductReviewEntity,
+        InventoryReservationEntity,
       ],
       synchronize: false,
       migrationsRun: true,
@@ -32,6 +35,7 @@ import { ReplacePicsumImageUrls1771100000000 } from "./migrations/replace-picsum
         AddProductSalesCount1770900000000,
         NormalizePicsumImageUrls1771000000000,
         ReplacePicsumImageUrls1771100000000,
+        AddInventoryReservations1771200000000,
       ],
       logging: false,
       extra: {
@@ -45,6 +49,7 @@ import { ReplacePicsumImageUrls1771100000000 } from "./migrations/replace-picsum
       ProductEntity,
       ProductVariantEntity,
       ProductReviewEntity,
+      InventoryReservationEntity,
     ]),
   ],
   providers: [DatabaseService],

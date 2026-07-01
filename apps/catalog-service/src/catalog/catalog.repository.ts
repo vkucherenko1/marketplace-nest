@@ -9,6 +9,8 @@ import type {
   ProductReview,
   ProductReviewsResponse,
   PlatformOverview,
+  ReserveInventoryRequest,
+  ReserveInventoryResponse,
   ReviewSort,
   SellerProduct,
   ProductSort,
@@ -16,8 +18,17 @@ import type {
   SaveCategory,
 } from "@marketplace/contracts";
 import { randomUUID } from "node:crypto";
-import { Brackets, In, Not, Repository } from "typeorm";
+import {
+  Brackets,
+  DataSource,
+  type EntityManager,
+  In,
+  LessThan,
+  Not,
+  Repository,
+} from "typeorm";
 import { CategoryEntity } from "../database/entities/category.entity";
+import { InventoryReservationEntity } from "../database/entities/inventory-reservation.entity";
 import { ProductReviewEntity } from "../database/entities/product-review.entity";
 import { ProductVariantEntity } from "../database/entities/product-variant.entity";
 import {
@@ -36,6 +47,7 @@ export class CatalogRepository {
     private readonly variants: Repository<ProductVariantEntity>,
     @InjectRepository(ProductReviewEntity)
     private readonly reviews: Repository<ProductReviewEntity>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async listCategories(): Promise<Category[]> {
@@ -334,6 +346,130 @@ export class CatalogRepository {
       }),
     );
     return { id, slug };
+  }
+
+  async reserveInventory(
+    input: ReserveInventoryRequest,
+  ): Promise<ReserveInventoryResponse | null> {
+    return this.dataSource.transaction(async (manager) => {
+      await this.expireReservations(manager);
+      const reservationId = randomUUID();
+      const reservedUntil = new Date(input.expiresAt);
+      const lines: ReserveInventoryResponse["lines"] = [];
+
+      for (const item of input.items) {
+        if (item.quantity < 1) {
+          return null;
+        }
+        if (item.variantId) {
+          const variant = await manager.findOne(ProductVariantEntity, {
+            where: { id: item.variantId },
+            relations: { product: { category: true, seller: true } },
+          });
+          if (
+            !variant ||
+            variant.productId !== item.productId ||
+            variant.stock < item.quantity ||
+            variant.product.status !== "ACTIVE"
+          ) {
+            return null;
+          }
+          const updated = await manager
+            .createQueryBuilder()
+            .update(ProductVariantEntity)
+            .set({ stock: () => `"stock" - ${item.quantity}` })
+            .where("id = :id AND stock >= :quantity", {
+              id: variant.id,
+              quantity: item.quantity,
+            })
+            .execute();
+          if (updated.affected !== 1) {
+            return null;
+          }
+          lines.push({
+            productId: variant.productId,
+            variantId: variant.id,
+            sellerId: variant.product.sellerId,
+            categoryId: variant.product.categoryId,
+            quantity: item.quantity,
+            priceMinor: variant.priceMinor,
+            reservedUntil: reservedUntil.toISOString(),
+          });
+        } else {
+          const product = await manager.findOne(ProductEntity, {
+            where: { id: item.productId, status: "ACTIVE" },
+            relations: { category: true, seller: true },
+          });
+          if (!product || product.stock < item.quantity) {
+            return null;
+          }
+          const updated = await manager
+            .createQueryBuilder()
+            .update(ProductEntity)
+            .set({ stock: () => `"stock" - ${item.quantity}` })
+            .where("id = :id AND stock >= :quantity", {
+              id: product.id,
+              quantity: item.quantity,
+            })
+            .execute();
+          if (updated.affected !== 1) {
+            return null;
+          }
+          lines.push({
+            productId: product.id,
+            variantId: null,
+            sellerId: product.sellerId,
+            categoryId: product.categoryId,
+            quantity: item.quantity,
+            priceMinor: product.priceMinor,
+            reservedUntil: reservedUntil.toISOString(),
+          });
+        }
+      }
+
+      await manager.save(
+        InventoryReservationEntity,
+        lines.map((line) =>
+          manager.create(InventoryReservationEntity, {
+            id: randomUUID(),
+            orderId: input.orderId,
+            productId: line.productId,
+            variantId: line.variantId,
+            quantity: line.quantity,
+            expiresAt: reservedUntil,
+            status: "ACTIVE",
+          }),
+        ),
+      );
+      return { reservationId, lines };
+    });
+  }
+
+  private async expireReservations(
+    manager: EntityManager,
+  ): Promise<void> {
+    const expired = await manager.find(InventoryReservationEntity, {
+      where: { status: "ACTIVE", expiresAt: LessThan(new Date()) },
+    });
+    for (const reservation of expired) {
+      if (reservation.variantId) {
+        await manager.increment(
+          ProductVariantEntity,
+          { id: reservation.variantId },
+          "stock",
+          reservation.quantity,
+        );
+      } else {
+        await manager.increment(
+          ProductEntity,
+          { id: reservation.productId },
+          "stock",
+          reservation.quantity,
+        );
+      }
+      reservation.status = "EXPIRED";
+    }
+    await manager.save(expired);
   }
 
   async listSellerProducts(

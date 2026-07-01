@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   Patch,
@@ -18,6 +19,8 @@ import type {
   ProductDetail,
   ProductReviewsResponse,
   PlatformOverview,
+  ReserveInventoryRequest,
+  ReserveInventoryResponse,
   SellerProduct,
 } from "@marketplace/contracts";
 import {
@@ -150,5 +153,13 @@ export class CatalogController {
     @Param("id") id: string,
   ): Promise<void> {
     return this.catalog.changeStatus(request.user, id, "DELETED");
+  }
+
+  @Post("internal/inventory/reservations")
+  reserveInventory(
+    @Headers("x-internal-token") internalToken: string | undefined,
+    @Body() input: ReserveInventoryRequest,
+  ): Promise<ReserveInventoryResponse> {
+    return this.catalog.reserveInventory(internalToken, input);
   }
 }

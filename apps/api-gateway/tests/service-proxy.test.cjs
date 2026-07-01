@@ -85,3 +85,36 @@ test("gateway кодирует фильтры каталога в query string",
     "products?search=%D0%B4%D0%B5%D1%82%D1%81%D0%BA%D0%B8%D0%B5+%D0%B8%D0%B3%D1%80%D1%83%D1%88%D0%BA%D0%B8&page=2&category=toys&category=sale",
   );
 });
+
+test("gateway проксирует checkout и media через единую точку входа", async () => {
+  const calls = [];
+  const controller = new GatewayController({
+    request: async (baseUrl, path, options) => {
+      calls.push({ baseUrl, path, options });
+      return { ok: true };
+    },
+  });
+
+  await controller.checkout("Bearer token", {
+    items: [{ productId: "p1", quantity: 1 }],
+    deliveryAddress: "Кишинёв",
+    paymentMethod: "CARD",
+    idempotencyKey: "key",
+  });
+  await controller.signUpload("Bearer token", {
+    filename: "p.jpg",
+    contentType: "image/jpeg",
+    size: 100,
+  });
+
+  assert.equal(calls[0].path, "checkout");
+  assert.equal(calls[0].options.authorization, "Bearer token");
+  assert.equal(calls[1].path, "media/uploads/sign");
+});
+
+test("gateway отдаёт Prometheus metrics", () => {
+  const controller = new GatewayController({ request: async () => ({}) });
+  const metrics = controller.metrics();
+  assert.match(metrics, /marketplace_gateway_uptime_seconds/);
+  assert.match(metrics, /marketplace_gateway_heap_used_bytes/);
+});

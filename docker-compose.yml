@@ -29,6 +29,34 @@ services:
     volumes:
       - catalog-db-data:/var/lib/postgresql/data
 
+  order-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: marketplace
+      POSTGRES_DB: orders
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+
+  analytics-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: marketplace
+      POSTGRES_DB: analytics
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d analytics"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - analytics-db-data:/var/lib/postgresql/data
+
   redis:
     image: redis:7.4-alpine
     command: redis-server --appendonly yes
@@ -104,6 +132,8 @@ services:
       PORT: 3002
       DATABASE_URL: ${CATALOG_DATABASE_URL:-postgresql://marketplace:marketplace@catalog-db:5432/catalog}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-token}
     depends_on:
       catalog-db:
         condition: service_healthy
@@ -121,6 +151,131 @@ services:
       timeout: 3s
       retries: 20
 
+  order-service:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        APP_NAME: order-service
+    environment:
+      PORT: 3003
+      DATABASE_URL: ${ORDER_DATABASE_URL:-postgresql://marketplace:marketplace@order-db:5432/orders}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-access-secret-change-me-32-chars}
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-internal-token}
+    depends_on:
+      order-db:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3003/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  media-service:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        APP_NAME: media-service
+    environment:
+      PORT: 3004
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-access-secret-change-me-32-chars}
+      MINIO_BUCKET: marketplace-media
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-marketplace}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-marketplace-secret}
+      MINIO_INTERNAL_PUBLIC_ORIGIN: http://minio:9000
+      MINIO_BROWSER_PUBLIC_ORIGIN: ${MINIO_BROWSER_PUBLIC_ORIGIN:-http://localhost:9000}
+      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-http://localhost:9000}
+      MEDIA_SIGNING_SECRET: ${MEDIA_SIGNING_SECRET:-local-media-signing-secret}
+    depends_on:
+      minio:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3004/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  search-indexer:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        APP_NAME: search-indexer
+    environment:
+      PORT: 3005
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+      MEILI_URL: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-local-meili-master-key}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    depends_on:
+      catalog-service:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+      nats:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3005/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: docker/node-service.Dockerfile
+      args:
+        APP_NAME: analytics-service
+    environment:
+      PORT: 3006
+      DATABASE_URL: ${ANALYTICS_DATABASE_URL:-postgresql://marketplace:marketplace@analytics-db:5432/analytics}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-access-secret-change-me-32-chars}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      ANALYTICS_RETENTION_DAYS: ${ANALYTICS_RETENTION_DAYS:-90}
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3006/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   api-gateway:
     build:
       context: .
@@ -131,15 +286,28 @@ services:
       PORT: 8080
       AUTH_SERVICE_URL: http://auth-service:3001
       CATALOG_SERVICE_URL: http://catalog-service:3002
+      ORDER_SERVICE_URL: http://order-service:3003
+      MEDIA_SERVICE_URL: http://media-service:3004
+      SEARCH_SERVICE_URL: http://search-indexer:3005
+      ANALYTICS_SERVICE_URL: http://analytics-service:3006
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       RATE_LIMIT_TTL_SECONDS: ${RATE_LIMIT_TTL_SECONDS:-60}
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-180}
+      UPSTREAM_TIMEOUT_MS: ${UPSTREAM_TIMEOUT_MS:-10000}
     ports:
       - "8080:8080"
     depends_on:
       auth-service:
         condition: service_healthy
       catalog-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
+      search-indexer:
+        condition: service_healthy
+      analytics-service:
         condition: service_healthy
     healthcheck:
       test:
@@ -166,6 +334,8 @@ services:
 volumes:
   auth-db-data:
   catalog-db-data:
+  order-db-data:
+  analytics-db-data:
   redis-data:
   meili-data:
   minio-data:

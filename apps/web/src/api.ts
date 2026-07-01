@@ -1,8 +1,13 @@
 import type {
   Category,
+  AnalyticsEvent,
+  CheckoutRequest,
   CreateProductInput,
   LoginResponse,
   ManagedUser,
+  MediaUploadRequest,
+  MediaUploadTicket,
+  OrderSummary,
   PaginatedResponse,
   ProductCard,
   ProductDetail,
@@ -199,5 +204,37 @@ export const api = {
         "content-type": "application/json",
       },
       body: JSON.stringify(profile),
+    }),
+
+  checkout: (accessToken: string, checkout: CheckoutRequest) =>
+    request<OrderSummary>("checkout", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(checkout),
+    }),
+
+  orders: (accessToken: string) =>
+    request<OrderSummary[]>("orders", {
+      headers: { authorization: `Bearer ${accessToken}` },
+    }),
+
+  signMediaUpload: (accessToken: string, media: MediaUploadRequest) =>
+    request<MediaUploadTicket>("media/uploads/sign", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(media),
+    }),
+
+  recordAnalytics: (event: AnalyticsEvent) =>
+    request<{ accepted: true }>("analytics/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(event),
     }),
 };

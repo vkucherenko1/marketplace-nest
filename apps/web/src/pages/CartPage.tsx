@@ -1,12 +1,17 @@
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "../api";
+import { useAuth } from "../features/auth/AuthProvider";
 import { useCart } from "../features/cart/CartProvider";
 import { cartItemTotalMinor } from "../features/cart/cartMath";
 import { money } from "../shared/format";
 
 export function CartPage() {
   const cart = useCart();
+  const { session } = useAuth();
+  const [checkoutMessage, setCheckoutMessage] = useState("");
+  const [checkingOut, setCheckingOut] = useState(false);
 
   if (cart.items.length === 0) {
     return (
@@ -91,9 +96,46 @@ export function CartPage() {
               {money.format(cart.totalMinor / 100)}
             </strong>
           </div>
-          <button className="tap-target mt-7 w-full cursor-pointer rounded-xl bg-lime py-4 font-bold text-white">
-            Перейти к оформлению
+          <button
+            className="tap-target mt-7 w-full cursor-pointer rounded-xl bg-lime py-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={checkingOut}
+            onClick={() => {
+              if (!session) {
+                setCheckoutMessage("Войдите в аккаунт, чтобы оформить заказ");
+                return;
+              }
+              setCheckingOut(true);
+              setCheckoutMessage("");
+              void api
+                .checkout(session.accessToken, {
+                  items: cart.items.map((item) => ({
+                    productId: item.product.id,
+                    variantId: item.variant?.id ?? null,
+                    quantity: item.quantity,
+                  })),
+                  deliveryAddress: session.user.displayName,
+                  paymentMethod: "CARD",
+                  idempotencyKey: crypto.randomUUID(),
+                })
+                .then((order) => {
+                  cart.clear();
+                  setCheckoutMessage(`Заказ ${order.id} создан`);
+                })
+                .catch((reason: unknown) =>
+                  setCheckoutMessage(
+                    reason instanceof Error ? reason.message : "Ошибка checkout",
+                  ),
+                )
+                .finally(() => setCheckingOut(false));
+            }}
+          >
+            {checkingOut ? "Оформляем..." : "Перейти к оформлению"}
           </button>
+          {checkoutMessage && (
+            <p className="mt-4 text-sm font-semibold text-ink/65">
+              {checkoutMessage}
+            </p>
+          )}
         </aside>
       </div>
     </section>
