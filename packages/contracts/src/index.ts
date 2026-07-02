@@ -221,6 +221,20 @@ export interface ReserveInventoryResponse {
   lines: ReservedInventoryLine[];
 }
 
+export interface InventoryOrderRequest {
+  orderId: string;
+}
+
+export interface ReleaseInventoryRequest extends InventoryOrderRequest {
+  reason?: "CANCELLED" | "EXPIRED";
+}
+
+export interface InventoryActionResponse {
+  orderId: string;
+  affected: number;
+  productIds?: string[];
+}
+
 export type OrderStatus =
   | "CREATED"
   | "RESERVED"
@@ -257,8 +271,23 @@ export interface MediaUploadTicket {
   objectKey: string;
   uploadUrl: string;
   publicUrl: string;
+  thumbnailUrl: string;
+  completeToken: string;
   expiresIn: number;
   requiredHeaders: Record<string, string>;
+}
+
+export interface CompleteMediaUploadRequest {
+  objectKey: string;
+  completeToken: string;
+}
+
+export interface MediaAsset {
+  objectKey: string;
+  publicUrl: string;
+  thumbnailUrl: string;
+  width: number;
+  height: number;
 }
 
 export type AnalyticsEventName =

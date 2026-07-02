@@ -1,24 +1,21 @@
 import { Module } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { AnalyticsEventEntity } from "./entities/analytics-event.entity";
-import { InitialAnalyticsSchema1771400000000 } from "./migrations/initial-analytics-schema";
+import { createClient } from "@clickhouse/client";
+import { ClickHouseSchemaService } from "./clickhouse-schema.service";
+import { CLICKHOUSE_CLIENT } from "./clickhouse.constants";
 
 @Module({
-  imports: [
-    TypeOrmModule.forRoot({
-      type: "postgres",
-      url:
-        process.env.DATABASE_URL ??
-        "postgresql://marketplace:marketplace@localhost:5432/analytics",
-      entities: [AnalyticsEventEntity],
-      synchronize: false,
-      migrationsRun: true,
-      migrations: [InitialAnalyticsSchema1771400000000],
-      logging: false,
-      extra: { max: 20, idleTimeoutMillis: 30_000 },
-    }),
-    TypeOrmModule.forFeature([AnalyticsEventEntity]),
+  providers: [
+    {
+      provide: CLICKHOUSE_CLIENT,
+      useFactory: () =>
+        createClient({
+          url: process.env.CLICKHOUSE_URL ?? "http://localhost:8123",
+          username: process.env.CLICKHOUSE_USER ?? "default",
+          password: process.env.CLICKHOUSE_PASSWORD ?? "",
+        }),
+    },
+    ClickHouseSchemaService,
   ],
-  exports: [TypeOrmModule],
+  exports: [CLICKHOUSE_CLIENT],
 })
 export class DatabaseModule {}

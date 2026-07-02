@@ -12,9 +12,12 @@ import {
   Query,
 } from "@nestjs/common";
 import type {
+  AnalyticsEvent,
   Category,
   CheckoutRequest,
+  CompleteMediaUploadRequest,
   MediaUploadRequest,
+  MediaAsset,
   MediaUploadTicket,
   LoginResponse,
   ManagedUser,
@@ -29,7 +32,6 @@ import type {
   SaveCategory,
   UserProfile,
   UserRole,
-  AnalyticsEvent,
 } from "@marketplace/contracts";
 import { ServiceProxy } from "./service-proxy.service";
 
@@ -314,12 +316,46 @@ export class GatewayController {
     });
   }
 
+  @Post("orders/:id/confirm")
+  confirmOrder(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("id") id: string,
+  ): Promise<OrderSummary> {
+    return this.proxy.request(this.orderUrl, `orders/${id}/confirm`, {
+      method: "POST",
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Post("orders/:id/cancel")
+  cancelOrder(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("id") id: string,
+  ): Promise<OrderSummary> {
+    return this.proxy.request(this.orderUrl, `orders/${id}/cancel`, {
+      method: "POST",
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
   @Post("media/uploads/sign")
   signUpload(
     @Headers("authorization") authorization: string | undefined,
     @Body() body: MediaUploadRequest,
   ): Promise<MediaUploadTicket> {
     return this.proxy.request(this.mediaUrl, "media/uploads/sign", {
+      method: "POST",
+      body,
+      ...(authorization ? { authorization } : {}),
+    });
+  }
+
+  @Post("media/uploads/complete")
+  completeUpload(
+    @Headers("authorization") authorization: string | undefined,
+    @Body() body: CompleteMediaUploadRequest,
+  ): Promise<MediaAsset> {
+    return this.proxy.request(this.mediaUrl, "media/uploads/complete", {
       method: "POST",
       body,
       ...(authorization ? { authorization } : {}),

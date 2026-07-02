@@ -37,6 +37,21 @@ test("создание товара передаёт в репозиторий s
       receivedSellerId = sellerId;
       return { id: "product-1", slug: "product-1" };
     },
+    findProductCardById: async () => ({
+      id: "product-1",
+      slug: "product-1",
+      name: "Тестовый товар",
+      description: "Достаточно длинное описание тестового товара",
+      category: { id: "category-1", slug: "category-1", name: "Категория" },
+      seller: { id: "seller-1", name: "Продавец", rating: 5, reviewCount: 1 },
+      priceMinor: 10000,
+      currency: "USD",
+      rating: 5,
+      reviewCount: 1,
+      salesCount: 0,
+      imageUrl: "https://example.com/product.webp",
+      inStock: true,
+    }),
   }, events);
 
   const result = await service.create(seller, {

@@ -378,6 +378,13 @@ test("checkout создаёт заказ с reservation и защищён JWT", 
   assert.equal(checkout.body.status, "RESERVED");
   assert.equal(checkout.body.totalMinor, product.priceMinor);
 
+  const cancelled = await request(`orders/${checkout.body.id}/cancel`, {
+    method: "POST",
+    token: session.accessToken,
+  });
+  assert.equal(cancelled.response.status, 201);
+  assert.equal(cancelled.body.status, "CANCELLED");
+
   const orders = await request("orders", { token: session.accessToken });
   assert.equal(orders.response.status, 200);
   assert.ok(orders.body.some((order) => order.id === checkout.body.id));

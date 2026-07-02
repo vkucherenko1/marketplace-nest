@@ -5,7 +5,6 @@ import { SearchService } from "./search.service";
 @Injectable()
 export class SearchEventSubscriber implements OnModuleInit, OnApplicationShutdown {
   private connection: NatsConnection | null = null;
-  private timer: NodeJS.Timeout | null = null;
 
   constructor(private readonly search: SearchService) {}
 
@@ -15,15 +14,22 @@ export class SearchEventSubscriber implements OnModuleInit, OnApplicationShutdow
     }).catch(() => null);
     if (!this.connection) return;
 
-    for (const subject of [
-      "marketplace.product.created",
-      "marketplace.product.updated",
-      "marketplace.review.created",
-    ]) {
+    for (const subject of ["marketplace.product.created", "marketplace.product.updated"]) {
       const sub = this.connection.subscribe(subject);
       void (async () => {
-        for await (const _msg of sub) {
-          this.scheduleReindex();
+        for await (const msg of sub) {
+          const event = msg.json<{
+            productId: string;
+            status?: "ACTIVE" | "HIDDEN" | "DELETED";
+            document?: unknown;
+          }>();
+          await this.search.syncProductDocument({
+            productId: event.productId,
+            document: (event.document ?? null) as
+              | import("@marketplace/contracts").ProductCard
+              | null,
+            ...(event.status ? { status: event.status } : {}),
+          });
         }
       })();
     }
@@ -31,13 +37,5 @@ export class SearchEventSubscriber implements OnModuleInit, OnApplicationShutdow
 
   async onApplicationShutdown(): Promise<void> {
     await this.connection?.drain();
-  }
-
-  private scheduleReindex(): void {
-    if (this.timer) {
-      clearTimeout(this.timer);
-    }
-    // Debounce защищает Meilisearch от шторма событий при массовом импорте.
-    this.timer = setTimeout(() => void this.search.reindex(), 1_000);
   }
 }

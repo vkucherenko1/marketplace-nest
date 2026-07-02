@@ -6,6 +6,7 @@ export interface UploadedImage {
   file: File;
   dataUrl: string;
   publicUrl?: string;
+  thumbnailUrl?: string;
 }
 
 export async function readImageFiles(files: FileList | File[]): Promise<UploadedImage[]> {

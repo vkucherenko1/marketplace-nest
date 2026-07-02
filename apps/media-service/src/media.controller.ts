@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 import type {
+  CompleteMediaUploadRequest,
+  MediaAsset,
   MediaUploadRequest,
   MediaUploadTicket,
 } from "@marketplace/contracts";
@@ -25,5 +27,14 @@ export class MediaController {
     @Body() body: MediaUploadRequest,
   ): Promise<MediaUploadTicket> {
     return this.media.signUpload(request.user.sub, body);
+  }
+
+  @Post("media/uploads/complete")
+  @UseGuards(AccessTokenGuard)
+  completeUpload(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: CompleteMediaUploadRequest,
+  ): Promise<MediaAsset> {
+    return this.media.completeUpload(request.user.sub, body);
   }
 }

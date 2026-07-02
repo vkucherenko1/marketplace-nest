@@ -1,7 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { randomUUID } from "node:crypto";
-import type { OrderSummary, ReservedInventoryLine } from "@marketplace/contracts";
+import type {
+  OrderStatus,
+  OrderSummary,
+  ReservedInventoryLine,
+} from "@marketplace/contracts";
 import { Repository } from "typeorm";
 import { OrderLineEntity } from "./database/entities/order-line.entity";
 import { OrderEntity } from "./database/entities/order.entity";
@@ -82,6 +86,21 @@ export class OrderRepository {
       relations: { items: true },
     });
     return order ? this.map(order) : null;
+  }
+
+  async setStatus(
+    buyerId: string,
+    id: string,
+    from: OrderStatus,
+    to: OrderStatus,
+  ): Promise<OrderSummary | null> {
+    // Статус меняется атомарно: если другой процесс уже подтвердил/отменил
+    // заказ, update не затронет строку и сервис перечитает фактическое состояние.
+    const result = await this.orders.update({ buyerId, id, status: from }, { status: to });
+    if (result.affected !== 1) {
+      return this.get(buyerId, id);
+    }
+    return this.get(buyerId, id);
   }
 
   private map(order: OrderEntity): OrderSummary {

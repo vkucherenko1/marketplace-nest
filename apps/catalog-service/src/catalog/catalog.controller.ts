@@ -19,6 +19,9 @@ import type {
   ProductDetail,
   ProductReviewsResponse,
   PlatformOverview,
+  InventoryActionResponse,
+  InventoryOrderRequest,
+  ReleaseInventoryRequest,
   ReserveInventoryRequest,
   ReserveInventoryResponse,
   SellerProduct,
@@ -161,5 +164,28 @@ export class CatalogController {
     @Body() input: ReserveInventoryRequest,
   ): Promise<ReserveInventoryResponse> {
     return this.catalog.reserveInventory(internalToken, input);
+  }
+
+  @Post("internal/inventory/reservations/confirm")
+  confirmInventory(
+    @Headers("x-internal-token") internalToken: string | undefined,
+    @Body() input: InventoryOrderRequest,
+  ): Promise<InventoryActionResponse> {
+    return this.catalog.confirmInventory(internalToken, input);
+  }
+
+  @Post("internal/inventory/reservations/release")
+  releaseInventory(
+    @Headers("x-internal-token") internalToken: string | undefined,
+    @Body() input: ReleaseInventoryRequest,
+  ): Promise<InventoryActionResponse> {
+    return this.catalog.releaseInventory(internalToken, input);
+  }
+
+  @Post("internal/inventory/reservations/expire")
+  expireInventory(
+    @Headers("x-internal-token") internalToken: string | undefined,
+  ): Promise<InventoryActionResponse> {
+    return this.catalog.expireInventory(internalToken);
   }
 }

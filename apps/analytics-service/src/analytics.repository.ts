@@ -1,76 +1,112 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
+import { Inject, Injectable } from "@nestjs/common";
+import type { ClickHouseClient } from "@clickhouse/client";
 import { randomUUID } from "node:crypto";
 import type { AnalyticsEvent, SellerAnalytics } from "@marketplace/contracts";
-import { LessThan, Repository } from "typeorm";
-import { AnalyticsEventEntity } from "./database/entities/analytics-event.entity";
+import { CLICKHOUSE_CLIENT } from "./database/clickhouse.constants";
 
 @Injectable()
 export class AnalyticsRepository {
   constructor(
-    @InjectRepository(AnalyticsEventEntity)
-    private readonly events: Repository<AnalyticsEventEntity>,
+    @Inject(CLICKHOUSE_CLIENT)
+    private readonly client: ClickHouseClient,
   ) {}
 
   async record(event: AnalyticsEvent): Promise<void> {
-    await this.events.save(
-      this.events.create({
-        id: randomUUID(),
-        name: event.name,
-        orderId: event.orderId ?? null,
-        productId: event.productId ?? null,
-        sellerId: event.sellerId ?? null,
-        categoryId: event.categoryId ?? null,
-        searchQuery: event.searchQuery ?? null,
-        position: event.position ?? null,
-        quantity: event.quantity ?? 1,
-        ...(event.occurredAt ? { createdAt: new Date(event.occurredAt) } : {}),
-      }),
-    );
+    await this.client.insert({
+      table: `${process.env.CLICKHOUSE_DATABASE ?? "analytics"}.analytics_events`,
+      format: "JSONEachRow",
+      values: [
+        {
+          id: randomUUID(),
+          name: event.name,
+          order_id: event.orderId ?? "",
+          product_id: event.productId ?? "",
+          seller_id: event.sellerId ?? "",
+          category_id: event.categoryId ?? "",
+          search_query: event.searchQuery ?? "",
+          position: event.position ?? null,
+          quantity: event.quantity ?? 1,
+          created_at: this.toClickHouseDateTime(event.occurredAt),
+        },
+      ],
+    });
   }
 
   async enforceRetention(days: number): Promise<number> {
-    const cutoff = new Date(Date.now() - days * 24 * 60 * 60_000);
-    const result = await this.events.delete({ createdAt: LessThan(cutoff) });
-    return result.affected ?? 0;
+    void days;
+    // За retention отвечает TTL на таблице ClickHouse, поэтому вручную
+    // чистить события на каждом запросе больше не нужно.
+    return 0;
   }
 
   async sellerAnalytics(sellerId: string): Promise<SellerAnalytics> {
-    const rows = await this.events.find({
-      where: { sellerId },
-      order: { createdAt: "DESC" },
+    const database = process.env.CLICKHOUSE_DATABASE ?? "analytics";
+    const summaryResult = await this.client.query({
+      query: `
+        SELECT
+          countIf(name = 'PRODUCT_VIEW') AS productViews,
+          countIf(name = 'SEARCH_RESULT_IMPRESSION') AS searchImpressions,
+          sumIf(quantity, name = 'ADD_TO_CART') AS addToCart,
+          sumIf(quantity, name = 'CHECKOUT_CREATED') AS purchases
+        FROM ${database}.analytics_events
+        WHERE seller_id = {sellerId:String}
+      `,
+      query_params: { sellerId },
+      format: "JSONEachRow",
     });
-    const productStats = new Map<
-      string,
-      { productId: string; views: number; addToCart: number; purchases: number }
-    >();
-    for (const event of rows) {
-      if (!event.productId) continue;
-      const stats =
-        productStats.get(event.productId) ??
-        { productId: event.productId, views: 0, addToCart: 0, purchases: 0 };
-      if (event.name === "PRODUCT_VIEW") stats.views += 1;
-      if (event.name === "ADD_TO_CART") stats.addToCart += event.quantity;
-      if (event.name === "CHECKOUT_CREATED") stats.purchases += event.quantity;
-      productStats.set(event.productId, stats);
-    }
+    const [summary] = await summaryResult.json<{
+      productViews?: string | number;
+      searchImpressions?: string | number;
+      addToCart?: string | number | null;
+      purchases?: string | number | null;
+    }>();
+
+    const topProductsResult = await this.client.query({
+      query: `
+        SELECT
+          product_id AS productId,
+          countIf(name = 'PRODUCT_VIEW') AS views,
+          sumIf(quantity, name = 'ADD_TO_CART') AS addToCart,
+          sumIf(quantity, name = 'CHECKOUT_CREATED') AS purchases
+        FROM ${database}.analytics_events
+        WHERE seller_id = {sellerId:String}
+          AND product_id != ''
+        GROUP BY product_id
+        ORDER BY (views + addToCart + purchases) DESC, productId ASC
+        LIMIT 20
+      `,
+      query_params: { sellerId },
+      format: "JSONEachRow",
+    });
+    const topProducts = await topProductsResult.json<{
+      productId: string;
+      views?: string | number;
+      addToCart?: string | number | null;
+      purchases?: string | number | null;
+    }>();
+
     return {
       sellerId,
-      productViews: rows.filter((event) => event.name === "PRODUCT_VIEW").length,
-      searchImpressions: rows.filter(
-        (event) => event.name === "SEARCH_RESULT_IMPRESSION",
-      ).length,
-      addToCart: rows
-        .filter((event) => event.name === "ADD_TO_CART")
-        .reduce((sum, event) => sum + event.quantity, 0),
-      purchases: rows
-        .filter((event) => event.name === "CHECKOUT_CREATED")
-        .reduce((sum, event) => sum + event.quantity, 0),
-      topProducts: [...productStats.values()].sort(
-        (left, right) =>
-          right.views + right.addToCart + right.purchases -
-          (left.views + left.addToCart + left.purchases),
-      ),
+      productViews: Number(summary?.productViews ?? 0),
+      searchImpressions: Number(summary?.searchImpressions ?? 0),
+      addToCart: Number(summary?.addToCart ?? 0),
+      purchases: Number(summary?.purchases ?? 0),
+      topProducts: topProducts.map((row) => ({
+        productId: row.productId,
+        views: Number(row.views ?? 0),
+        addToCart: Number(row.addToCart ?? 0),
+        purchases: Number(row.purchases ?? 0),
+      })),
     };
+  }
+
+  async ping(): Promise<boolean> {
+    const result = await this.client.ping();
+    return result.success;
+  }
+
+  private toClickHouseDateTime(occurredAt?: string): string {
+    const date = occurredAt ? new Date(occurredAt) : new Date();
+    return date.toISOString().replace("T", " ").replace("Z", "");
   }
 }

@@ -337,7 +337,15 @@ function ProductImageDropzone(props: {
           headers: ticket.requiredHeaders,
           body: image.file,
         });
-        return { ...image, publicUrl: ticket.publicUrl };
+        const asset = await api.completeMediaUpload(props.accessToken, {
+          objectKey: ticket.objectKey,
+          completeToken: ticket.completeToken,
+        });
+        return {
+          ...image,
+          publicUrl: asset.publicUrl,
+          thumbnailUrl: asset.thumbnailUrl,
+        };
       }),
     );
     if (images.length > 0) {

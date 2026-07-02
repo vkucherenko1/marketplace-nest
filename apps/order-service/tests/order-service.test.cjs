@@ -29,6 +29,16 @@ function createService() {
     list: async (buyerId) => [...saved.values()].filter((order) => order.buyerId === buyerId),
     get: async (buyerId, id) =>
       [...saved.values()].find((order) => order.buyerId === buyerId && order.id === id) ?? null,
+    setStatus: async (buyerId, id, from, to) => {
+      const order = [...saved.values()].find(
+        (item) => item.buyerId === buyerId && item.id === id,
+      );
+      if (!order || order.status !== from) {
+        return order ?? null;
+      }
+      order.status = to;
+      return order;
+    },
   };
   const inventory = {
     reserve: async (input) => ({
@@ -43,6 +53,8 @@ function createService() {
         reservedUntil: input.expiresAt,
       })),
     }),
+    confirm: async () => ({ orderId: "order-1", affected: 1 }),
+    release: async () => ({ orderId: "order-1", affected: 1 }),
   };
   return new OrderService(repository, inventory, { publish: async () => undefined });
 }
@@ -79,4 +91,26 @@ test("покупатель видит только свои заказы", async
   assert.equal((await service.listOrders("buyer-1")).length, 1);
   const [other] = await service.listOrders("buyer-2");
   await assert.rejects(() => service.getOrder("buyer-1", other.id));
+});
+
+test("заказ можно подтвердить или отменить только из резерва", async () => {
+  const service = createService();
+  const input = {
+    items: [{ productId: "product-1", quantity: 1 }],
+    deliveryAddress: "Кишинёв",
+    paymentMethod: "CARD",
+    idempotencyKey: "confirm-key",
+  };
+
+  const order = await service.createCheckout("buyer-1", input);
+  const paid = await service.confirmOrder("buyer-1", order.id);
+  assert.equal(paid.status, "PAID");
+  await assert.rejects(() => service.cancelOrder("buyer-1", order.id));
+
+  const cancellable = await service.createCheckout("buyer-1", {
+    ...input,
+    idempotencyKey: "cancel-key",
+  });
+  const cancelled = await service.cancelOrder("buyer-1", cancellable.id);
+  assert.equal(cancelled.status, "CANCELLED");
 });

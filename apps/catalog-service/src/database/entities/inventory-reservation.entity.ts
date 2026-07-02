@@ -7,7 +7,11 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-export type InventoryReservationStatus = "ACTIVE" | "RELEASED" | "EXPIRED";
+export type InventoryReservationStatus =
+  | "ACTIVE"
+  | "CONFIRMED"
+  | "RELEASED"
+  | "EXPIRED";
 
 @Entity({ name: "inventory_reservations" })
 @Index("inventory_reservations_order_idx", ["orderId"])

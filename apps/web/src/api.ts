@@ -1,10 +1,12 @@
 import type {
-  Category,
   AnalyticsEvent,
+  Category,
+  CompleteMediaUploadRequest,
   CheckoutRequest,
   CreateProductInput,
   LoginResponse,
   ManagedUser,
+  MediaAsset,
   MediaUploadRequest,
   MediaUploadTicket,
   OrderSummary,
@@ -229,6 +231,16 @@ export const api = {
         "content-type": "application/json",
       },
       body: JSON.stringify(media),
+    }),
+
+  completeMediaUpload: (accessToken: string, body: CompleteMediaUploadRequest) =>
+    request<MediaAsset>("media/uploads/complete", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
     }),
 
   recordAnalytics: (event: AnalyticsEvent) =>

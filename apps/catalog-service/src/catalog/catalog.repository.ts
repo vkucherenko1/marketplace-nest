@@ -9,6 +9,9 @@ import type {
   ProductReview,
   ProductReviewsResponse,
   PlatformOverview,
+  InventoryActionResponse,
+  InventoryOrderRequest,
+  ReleaseInventoryRequest,
   ReserveInventoryRequest,
   ReserveInventoryResponse,
   ReviewSort,
@@ -275,6 +278,14 @@ export class CatalogRepository {
     };
   }
 
+  async findProductCardById(id: string): Promise<ProductCard | null> {
+    const product = await this.products.findOne({
+      where: { id },
+      relations: { category: true, seller: true },
+    });
+    return product ? this.mapProduct(product) : null;
+  }
+
   async listProductReviews(
     slug: string,
     input: {
@@ -445,31 +456,113 @@ export class CatalogRepository {
     });
   }
 
+  async confirmInventory(
+    input: InventoryOrderRequest,
+  ): Promise<InventoryActionResponse | null> {
+    return this.dataSource.transaction(async (manager) => {
+      await this.expireReservations(manager);
+      const reservations = await manager.find(InventoryReservationEntity, {
+        where: { orderId: input.orderId, status: "ACTIVE" },
+      });
+      if (reservations.length === 0) {
+        const confirmed = await manager.countBy(InventoryReservationEntity, {
+          orderId: input.orderId,
+          status: "CONFIRMED",
+        });
+        return confirmed > 0 ? { orderId: input.orderId, affected: 0 } : null;
+      }
+
+      for (const reservation of reservations) {
+        if (reservation.expiresAt.getTime() <= Date.now()) {
+          return null;
+        }
+        reservation.status = "CONFIRMED";
+        // Остаток уже уменьшен на этапе reserve; здесь фиксируем продажу
+        // для сортировок, аналитики и популярных подборок.
+        await manager.increment(
+          ProductEntity,
+          { id: reservation.productId },
+          "salesCount",
+          reservation.quantity,
+        );
+      }
+      await manager.save(reservations);
+      return {
+        orderId: input.orderId,
+        affected: reservations.length,
+        productIds: [...new Set(reservations.map((reservation) => reservation.productId))],
+      };
+    });
+  }
+
+  async releaseInventory(
+    input: ReleaseInventoryRequest,
+  ): Promise<InventoryActionResponse | null> {
+    return this.dataSource.transaction(async (manager) => {
+      const reservations = await manager.find(InventoryReservationEntity, {
+        where: { orderId: input.orderId, status: "ACTIVE" },
+      });
+      if (reservations.length === 0) {
+        const known = await manager.count(InventoryReservationEntity, {
+          where: { orderId: input.orderId },
+        });
+        return known > 0 ? { orderId: input.orderId, affected: 0 } : null;
+      }
+
+      for (const reservation of reservations) {
+        await this.returnReservedStock(manager, reservation);
+        reservation.status =
+          input.reason === "EXPIRED" ? "EXPIRED" : "RELEASED";
+      }
+      await manager.save(reservations);
+      return {
+        orderId: input.orderId,
+        affected: reservations.length,
+        productIds: [...new Set(reservations.map((reservation) => reservation.productId))],
+      };
+    });
+  }
+
+  async expireInventoryReservations(): Promise<InventoryActionResponse> {
+    return this.dataSource.transaction(async (manager) => ({
+      orderId: "*",
+      affected: await this.expireReservations(manager),
+    }));
+  }
+
   private async expireReservations(
     manager: EntityManager,
-  ): Promise<void> {
+  ): Promise<number> {
     const expired = await manager.find(InventoryReservationEntity, {
       where: { status: "ACTIVE", expiresAt: LessThan(new Date()) },
     });
     for (const reservation of expired) {
-      if (reservation.variantId) {
-        await manager.increment(
-          ProductVariantEntity,
-          { id: reservation.variantId },
-          "stock",
-          reservation.quantity,
-        );
-      } else {
-        await manager.increment(
-          ProductEntity,
-          { id: reservation.productId },
-          "stock",
-          reservation.quantity,
-        );
-      }
+      await this.returnReservedStock(manager, reservation);
       reservation.status = "EXPIRED";
     }
     await manager.save(expired);
+    return expired.length;
+  }
+
+  private async returnReservedStock(
+    manager: EntityManager,
+    reservation: InventoryReservationEntity,
+  ): Promise<void> {
+    if (reservation.variantId) {
+      await manager.increment(
+        ProductVariantEntity,
+        { id: reservation.variantId },
+        "stock",
+        reservation.quantity,
+      );
+      return;
+    }
+    await manager.increment(
+      ProductEntity,
+      { id: reservation.productId },
+      "stock",
+      reservation.quantity,
+    );
   }
 
   async listSellerProducts(

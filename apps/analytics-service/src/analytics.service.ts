@@ -17,4 +17,11 @@ export class AnalyticsService {
   sellerAnalytics(sellerId: string): Promise<SellerAnalytics> {
     return this.repository.sellerAnalytics(sellerId);
   }
+
+  async health(): Promise<{ status: "ok"; service: "analytics-service" }> {
+    if (!(await this.repository.ping())) {
+      throw new Error("ClickHouse is unavailable");
+    }
+    return { status: "ok", service: "analytics-service" };
+  }
 }

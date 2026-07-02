@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { CheckoutRequest, OrderSummary } from "@marketplace/contracts";
 import { InventoryClient } from "./inventory.client";
@@ -59,5 +59,55 @@ export class OrderService {
       throw new NotFoundException("Order not found");
     }
     return order;
+  }
+
+  async confirmOrder(buyerId: string, id: string): Promise<OrderSummary> {
+    const order = await this.getOrder(buyerId, id);
+    if (order.status === "PAID") {
+      return order;
+    }
+    if (order.status !== "RESERVED") {
+      throw new ConflictException("Only reserved orders can be confirmed");
+    }
+
+    await this.inventory.confirm({ orderId: id });
+    const confirmed = await this.orders.setStatus(buyerId, id, "RESERVED", "PAID");
+    if (!confirmed || confirmed.status !== "PAID") {
+      throw new ConflictException("Order status was changed concurrently");
+    }
+    await this.events.publish("marketplace.order.paid", {
+      orderId: id,
+      buyerId,
+      totalMinor: confirmed.totalMinor,
+      occurredAt: new Date().toISOString(),
+    });
+    return confirmed;
+  }
+
+  async cancelOrder(buyerId: string, id: string): Promise<OrderSummary> {
+    const order = await this.getOrder(buyerId, id);
+    if (order.status === "CANCELLED") {
+      return order;
+    }
+    if (order.status !== "RESERVED") {
+      throw new ConflictException("Only reserved orders can be cancelled");
+    }
+
+    await this.inventory.release({ orderId: id, reason: "CANCELLED" });
+    const cancelled = await this.orders.setStatus(
+      buyerId,
+      id,
+      "RESERVED",
+      "CANCELLED",
+    );
+    if (!cancelled || cancelled.status !== "CANCELLED") {
+      throw new ConflictException("Order status was changed concurrently");
+    }
+    await this.events.publish("marketplace.order.cancelled", {
+      orderId: id,
+      buyerId,
+      occurredAt: new Date().toISOString(),
+    });
+    return cancelled;
   }
 }

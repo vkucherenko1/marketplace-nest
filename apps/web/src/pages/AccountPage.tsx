@@ -216,10 +216,28 @@ export function AccountPage() {
                   if (!files?.length) {
                     return;
                   }
-                  void readImageFiles(files).then(([image]) => {
-                    if (image) {
-                      setProfile({ ...profile, avatarUrl: image.dataUrl });
+                  void readImageFiles(files).then(async ([image]) => {
+                    if (!image) {
+                      return;
                     }
+                    const ticket = await api.signMediaUpload(session.accessToken, {
+                      filename: image.name,
+                      contentType: image.type,
+                      size: image.size,
+                    });
+                    await fetch(ticket.uploadUrl, {
+                      method: "PUT",
+                      headers: ticket.requiredHeaders,
+                      body: image.file,
+                    });
+                    const asset = await api.completeMediaUpload(
+                      session.accessToken,
+                      {
+                        objectKey: ticket.objectKey,
+                        completeToken: ticket.completeToken,
+                      },
+                    );
+                    setProfile({ ...profile, avatarUrl: asset.publicUrl });
                   });
                 }}
               />

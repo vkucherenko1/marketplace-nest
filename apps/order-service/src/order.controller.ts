@@ -38,4 +38,22 @@ export class OrderController {
   ): Promise<OrderSummary> {
     return this.orders.getOrder(request.user.sub, id);
   }
+
+  @Post("orders/:id/confirm")
+  @UseGuards(AccessTokenGuard)
+  confirm(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+  ): Promise<OrderSummary> {
+    return this.orders.confirmOrder(request.user.sub, id);
+  }
+
+  @Post("orders/:id/cancel")
+  @UseGuards(AccessTokenGuard)
+  cancel(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+  ): Promise<OrderSummary> {
+    return this.orders.cancelOrder(request.user.sub, id);
+  }
 }

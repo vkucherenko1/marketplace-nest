@@ -12,6 +12,9 @@ import type {
   ProductDetail,
   ProductReviewsResponse,
   PlatformOverview,
+  InventoryActionResponse,
+  InventoryOrderRequest,
+  ReleaseInventoryRequest,
   ReserveInventoryRequest,
   ReserveInventoryResponse,
   SellerProduct,
@@ -111,11 +114,11 @@ export class CatalogService {
     // Новый товар всегда создаётся скрытым. Продавец должен отдельно проверить
     // карточку и вручную опубликовать её через операцию восстановления/активации.
     const created = await this.repository.createProduct(sellerId, input);
-    await this.events.publish("marketplace.product.created", {
-      productId: created.id,
-      sellerId,
-      occurredAt: new Date().toISOString(),
-    });
+    await this.publishProductSnapshot(
+      "marketplace.product.created",
+      created.id,
+      "HIDDEN",
+    );
     return created;
   }
 
@@ -146,26 +149,69 @@ export class CatalogService {
     if (!(await this.repository.setStatus(sellerId, id, status))) {
       throw new NotFoundException("Product was not found or is not owned by seller");
     }
-    await this.events.publish("marketplace.product.updated", {
-      productId: id,
-      sellerId,
-      status,
-      occurredAt: new Date().toISOString(),
-    });
+    await this.publishProductSnapshot("marketplace.product.updated", id, status);
   }
 
   async reserveInventory(
     internalToken: string | undefined,
     input: ReserveInventoryRequest,
   ): Promise<ReserveInventoryResponse> {
-    if (internalToken !== (process.env.INTERNAL_SERVICE_TOKEN ?? "local-internal-token")) {
-      throw new ForbiddenException("Internal token required");
-    }
+    this.requireInternalToken(internalToken);
     const reservation = await this.repository.reserveInventory(input);
     if (!reservation) {
       throw new ConflictException("Insufficient inventory");
     }
     return reservation;
+  }
+
+  async confirmInventory(
+    internalToken: string | undefined,
+    input: InventoryOrderRequest,
+  ): Promise<InventoryActionResponse> {
+    this.requireInternalToken(internalToken);
+    const confirmed = await this.repository.confirmInventory(input);
+    if (!confirmed) {
+      throw new ConflictException("Reservation is missing or expired");
+    }
+    await this.events.publish("marketplace.inventory.confirmed", {
+      orderId: input.orderId,
+      affected: confirmed.affected,
+      occurredAt: new Date().toISOString(),
+    });
+    for (const productId of confirmed.productIds ?? []) {
+      await this.publishProductSnapshot("marketplace.product.updated", productId);
+    }
+    return confirmed;
+  }
+
+  async releaseInventory(
+    internalToken: string | undefined,
+    input: ReleaseInventoryRequest,
+  ): Promise<InventoryActionResponse> {
+    this.requireInternalToken(internalToken);
+    const released = await this.repository.releaseInventory(input);
+    if (!released) {
+      throw new NotFoundException("Reservation not found");
+    }
+    await this.events.publish("marketplace.inventory.released", {
+      orderId: input.orderId,
+      affected: released.affected,
+      reason: input.reason ?? "CANCELLED",
+      occurredAt: new Date().toISOString(),
+    });
+    return released;
+  }
+
+  async expireInventory(
+    internalToken: string | undefined,
+  ): Promise<InventoryActionResponse> {
+    this.requireInternalToken(internalToken);
+    const expired = await this.repository.expireInventoryReservations();
+    await this.events.publish("marketplace.inventory.expired", {
+      affected: expired.affected,
+      occurredAt: new Date().toISOString(),
+    });
+    return expired;
   }
 
   private requireSeller(user: AuthenticatedRequest["user"]): string {
@@ -181,6 +227,27 @@ export class CatalogService {
     if (!user.roles.some((role) => role === "MODERATOR" || role === "ADMIN")) {
       throw new ForbiddenException("Moderator role required");
     }
+  }
+
+  private requireInternalToken(internalToken: string | undefined): void {
+    if (internalToken !== (process.env.INTERNAL_SERVICE_TOKEN ?? "local-internal-token")) {
+      throw new ForbiddenException("Internal token required");
+    }
+  }
+
+  private async publishProductSnapshot(
+    subject: "marketplace.product.created" | "marketplace.product.updated",
+    productId: string,
+    status?: "ACTIVE" | "HIDDEN" | "DELETED",
+  ): Promise<void> {
+    const product = await this.repository.findProductCardById(productId);
+    await this.events.publish(subject, {
+      productId,
+      status: status ?? "ACTIVE",
+      document:
+        status === "HIDDEN" || status === "DELETED" ? null : product,
+      occurredAt: new Date().toISOString(),
+    });
   }
 
   private async validateCategoryPlacement(

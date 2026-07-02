@@ -106,10 +106,19 @@ test("gateway проксирует checkout и media через единую т�
     contentType: "image/jpeg",
     size: 100,
   });
+  await controller.completeUpload("Bearer token", {
+    objectKey: "seller-1/incoming/test.jpg",
+    completeToken: "token",
+  });
+  await controller.confirmOrder("Bearer token", "order-1");
+  await controller.cancelOrder("Bearer token", "order-1");
 
   assert.equal(calls[0].path, "checkout");
   assert.equal(calls[0].options.authorization, "Bearer token");
   assert.equal(calls[1].path, "media/uploads/sign");
+  assert.equal(calls[2].path, "media/uploads/complete");
+  assert.equal(calls[3].path, "orders/order-1/confirm");
+  assert.equal(calls[4].path, "orders/order-1/cancel");
 });
 
 test("gateway отдаёт Prometheus metrics", () => {

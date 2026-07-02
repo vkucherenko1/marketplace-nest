@@ -8,8 +8,8 @@ export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}
 
   @Get("health")
-  health(): { status: "ok"; service: "analytics-service" } {
-    return { status: "ok", service: "analytics-service" };
+  health(): Promise<{ status: "ok"; service: "analytics-service" }> {
+    return this.analytics.health();
   }
 
   @Post("analytics/events")
