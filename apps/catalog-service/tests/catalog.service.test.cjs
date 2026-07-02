@@ -154,14 +154,14 @@ test("отзывы передают пагинацию, рейтинг и сор
 
   await service.reviews("product", {
     page: 2,
-    pageSize: 6,
+    pageSize: 5,
     rating: 5,
     sort: "oldest",
   });
 
   assert.deepEqual(receivedQuery, {
     page: 2,
-    pageSize: 6,
+    pageSize: 5,
     rating: 5,
     sort: "oldest",
   });

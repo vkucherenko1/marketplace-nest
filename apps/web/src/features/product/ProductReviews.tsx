@@ -2,10 +2,13 @@ import type {
   ProductReview,
   ReviewSort,
 } from "@marketplace/contracts";
-import { Star } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { IconButton } from "../../shared/IconButton";
 import { SelectField } from "../../shared/SelectField";
+
+const REVIEWS_PER_PAGE = 5;
 
 const sortOptions: Array<{
   value: ReviewSort;
@@ -31,16 +34,17 @@ export function ProductReviews(props: {
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [rating, setRating] = useState<number | null>(null);
   const [sort, setSort] = useState<ReviewSort>("newest");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setReviews([]);
     setPage(1);
     setTotalPages(1);
+    setTotal(0);
   }, [props.productSlug, rating, sort]);
 
   useEffect(() => {
@@ -52,17 +56,16 @@ export function ProductReviews(props: {
         props.productSlug,
         {
           page,
-          pageSize: 6,
+          pageSize: REVIEWS_PER_PAGE,
           sort,
           ...(rating ? { rating } : {}),
         },
         controller.signal,
       )
       .then((response) => {
-        setReviews((current) =>
-          page === 1 ? response.items : [...current, ...response.items],
-        );
-        setTotalPages(response.totalPages);
+        setReviews(response.items);
+        setTotal(response.total);
+        setTotalPages(Math.max(1, response.totalPages));
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -79,25 +82,6 @@ export function ProductReviews(props: {
     return () => controller.abort();
   }, [page, props.productSlug, rating, sort]);
 
-  useEffect(() => {
-    const target = loadMoreRef.current;
-    if (!target || loading || page >= totalPages) {
-      return;
-    }
-    // Следующая страница запрашивается только когда пользователь приблизился
-    // к концу списка, поэтому отзывы не утяжеляют первоначальную загрузку товара.
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setPage((current) => current + 1);
-        }
-      },
-      { rootMargin: "250px" },
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [loading, page, totalPages]);
-
   return (
     <section className="mt-8 rounded-3xl bg-white p-7 lg:p-10">
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
@@ -106,6 +90,7 @@ export function ProductReviews(props: {
           <h2 className="mt-2 text-3xl font-semibold">Что говорят о товаре</h2>
           <p className="mt-2 text-sm text-ink/45">
             Всего отзывов: {props.reviewCount}
+            {rating ? `, найдено с оценкой ${rating}: ${total}` : ""}
           </p>
         </div>
         <SelectField
@@ -133,7 +118,7 @@ export function ProductReviews(props: {
         ))}
       </div>
 
-      <div className="mt-7 grid gap-4 lg:grid-cols-3">
+      <div className="mt-7 grid gap-4 xl:grid-cols-5">
         {reviews.map((review) => (
           <ReviewCard key={review.id} review={review} />
         ))}
@@ -146,8 +131,8 @@ export function ProductReviews(props: {
       )}
       {error && <p className="mt-5 text-sm text-red-700">{error}</p>}
       {loading && (
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          {Array.from({ length: 3 }, (_, index) => (
+        <div className="mt-6 grid gap-4 xl:grid-cols-5">
+          {Array.from({ length: REVIEWS_PER_PAGE }, (_, index) => (
             <div
               key={index}
               className="h-48 animate-pulse rounded-2xl bg-cream"
@@ -155,7 +140,14 @@ export function ProductReviews(props: {
           ))}
         </div>
       )}
-      <div ref={loadMoreRef} className="h-1" aria-hidden="true" />
+      {totalPages > 1 && (
+        <ReviewPagination
+          page={page}
+          totalPages={totalPages}
+          loading={loading}
+          onPageChange={setPage}
+        />
+      )}
     </section>
   );
 }
@@ -208,6 +200,92 @@ function ReviewCard({ review }: { review: ProductReview }) {
         ))}
       </div>
       <p className="mt-4 leading-7 text-ink/70">{review.text}</p>
+      {review.imageUrls.length > 0 && (
+        <div className="mt-4 grid grid-cols-5 gap-2">
+          {review.imageUrls.slice(0, 5).map((imageUrl, index) => (
+            <a
+              key={imageUrl}
+              className="group block overflow-hidden rounded-xl border border-ink/10 bg-cream"
+              href={imageUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Фото ${index + 1} к отзыву ${review.authorName}`}
+            >
+              <img
+                className="aspect-square h-full w-full object-cover transition group-hover:scale-105"
+                src={imageUrl}
+                alt=""
+                loading="lazy"
+              />
+            </a>
+          ))}
+        </div>
+      )}
     </article>
+  );
+}
+
+function ReviewPagination(props: {
+  page: number;
+  totalPages: number;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  const pages = Array.from({ length: props.totalPages }, (_, index) => index + 1)
+    .filter(
+      (page) =>
+        page === 1 ||
+        page === props.totalPages ||
+        Math.abs(page - props.page) <= 1,
+    );
+
+  return (
+    <nav
+      className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-5"
+      aria-label="Страницы отзывов"
+    >
+      <p className="text-sm text-ink/55">
+        Страница {props.page} из {props.totalPages}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <IconButton
+          aria-label="Предыдущая страница отзывов"
+          disabled={props.loading || props.page <= 1}
+          onClick={() => props.onPageChange(Math.max(1, props.page - 1))}
+        >
+          <ChevronLeft size={18} />
+        </IconButton>
+        {pages.map((page, index) => {
+          const previous = pages[index - 1];
+          const showGap = previous && page - previous > 1;
+          return (
+            <span key={page} className="flex items-center gap-2">
+              {showGap && <span className="px-1 text-ink/35">...</span>}
+              <button
+                type="button"
+                className={`h-10 min-w-10 rounded-xl px-3 text-sm font-semibold transition ${
+                  page === props.page
+                    ? "bg-lime text-white"
+                    : "border border-ink/10 hover:border-lime hover:text-lime"
+                }`}
+                disabled={props.loading}
+                onClick={() => props.onPageChange(page)}
+              >
+                {page}
+              </button>
+            </span>
+          );
+        })}
+        <IconButton
+          aria-label="Следующая страница отзывов"
+          disabled={props.loading || props.page >= props.totalPages}
+          onClick={() =>
+            props.onPageChange(Math.min(props.totalPages, props.page + 1))
+          }
+        >
+          <ChevronRight size={18} />
+        </IconButton>
+      </div>
+    </nav>
   );
 }

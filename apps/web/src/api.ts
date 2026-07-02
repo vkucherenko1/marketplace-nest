@@ -166,7 +166,7 @@ export const api = {
   ) => {
     const params = new URLSearchParams({
       page: String(query.page),
-      pageSize: String(query.pageSize ?? 6),
+      pageSize: String(query.pageSize ?? 5),
       sort: query.sort,
     });
     if (query.rating) {

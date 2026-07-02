@@ -35,6 +35,9 @@ export class ProductReviewEntity {
   @Column({ name: "review_text" })
   reviewText!: string;
 
+  @Column({ name: "image_urls", type: "jsonb", default: () => "'[]'::jsonb" })
+  imageUrls!: string[];
+
   @Column({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
 }

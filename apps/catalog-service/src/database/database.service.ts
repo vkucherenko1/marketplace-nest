@@ -302,6 +302,7 @@ export class DatabaseService implements OnModuleInit {
     ];
     const authors = ["Елена К.", "Михаил Р.", "Ольга Н."];
     reviewTexts.forEach((reviewText, index) => {
+      const imageCount = (input.sequence + index) % 6;
       input.reviews.push({
         id: `${input.productId}-review-${index + 1}`,
         productId: input.productId,
@@ -309,6 +310,13 @@ export class DatabaseService implements OnModuleInit {
         authorAvatarUrl: demoImageUrl(`reviewer-${input.sequence}-${index}`, 96, 96),
         rating: 4 + ((input.sequence + index) % 2),
         reviewText,
+        imageUrls: Array.from({ length: imageCount }, (_, imageIndex) =>
+          demoImageUrl(
+            `review-${input.sequence}-${index}-${imageIndex}`,
+            320,
+            240,
+          ),
+        ),
         createdAt: new Date(Date.UTC(2026, 4, 20 - index)),
       });
     });

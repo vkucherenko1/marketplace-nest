@@ -151,6 +151,7 @@ export class InitialCatalogSchema1770800000000 implements MigrationInterface {
             { name: "author_avatar_url", type: "text", isNullable: true },
             { name: "rating", type: "integer" },
             { name: "review_text", type: "text" },
+            { name: "image_urls", type: "jsonb", default: "'[]'::jsonb" },
             { name: "created_at", type: "timestamptz" },
           ],
           foreignKeys: [

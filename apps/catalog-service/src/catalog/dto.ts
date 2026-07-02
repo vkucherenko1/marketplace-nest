@@ -105,7 +105,7 @@ export class ProductReviewsQueryDto {
   @IsInt()
   @Min(1)
   @Max(20)
-  pageSize = 6;
+  pageSize = 5;
 
   @IsOptional()
   @Type(() => Number)

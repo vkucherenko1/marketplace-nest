@@ -11,6 +11,7 @@ import { SellerEntity } from "./entities/seller.entity";
 import { AddInventoryReservations1771200000000 } from "./migrations/add-inventory-reservations";
 import { AddCatalogOutboxEvents1771400000000 } from "./migrations/add-outbox-events";
 import { AddProductSalesCount1770900000000 } from "./migrations/add-product-sales-count";
+import { AddProductReviewImages1771500000000 } from "./migrations/add-product-review-images";
 import { InitialCatalogSchema1770800000000 } from "./migrations/initial-catalog-schema";
 import { NormalizePicsumImageUrls1771000000000 } from "./migrations/normalize-picsum-image-urls";
 import { ReplacePicsumImageUrls1771100000000 } from "./migrations/replace-picsum-image-urls";
@@ -40,6 +41,7 @@ import { ReplacePicsumImageUrls1771100000000 } from "./migrations/replace-picsum
         ReplacePicsumImageUrls1771100000000,
         AddInventoryReservations1771200000000,
         AddCatalogOutboxEvents1771400000000,
+        AddProductReviewImages1771500000000,
       ],
       logging: false,
       extra: {

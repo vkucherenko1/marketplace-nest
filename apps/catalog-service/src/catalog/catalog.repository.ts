@@ -694,6 +694,7 @@ export class CatalogRepository {
       authorAvatarUrl: review.authorAvatarUrl,
       rating: review.rating,
       text: review.reviewText,
+      imageUrls: (review.imageUrls ?? []).slice(0, 5),
       createdAt: review.createdAt.toISOString(),
     };
   }

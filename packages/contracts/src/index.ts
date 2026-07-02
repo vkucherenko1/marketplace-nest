@@ -113,6 +113,7 @@ export interface ProductReview {
   authorAvatarUrl: string | null;
   rating: number;
   text: string;
+  imageUrls: string[];
   createdAt: string;
 }
 
